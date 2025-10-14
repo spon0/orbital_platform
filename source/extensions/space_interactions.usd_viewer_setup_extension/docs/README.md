@@ -1,0 +1,1 @@
+# USD Viewer Setup Extension [space_interactions.usd_viewer_setup_extension]
