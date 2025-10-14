@@ -23,6 +23,7 @@ from omni.ui import DockPreference
 from omni.kit.viewport.utility import get_active_viewport, get_active_viewport_window
 from omni.timeline import TimelineEventType
 from omni.kit.widget.searchable_combobox import build_searchable_combo_widget, ComboBoxListDelegate
+from omni.kit.viewport.utility.camera_state import ViewportCameraState
 import omni.kit.app
 
 import omni.earth_2_command_center.app.core as earth2core
@@ -47,13 +48,9 @@ WGS84_SEMIMINOR = 6356.752314245
 WGS84_RADIUS = 6371.0
 EMPTY_COMBO_VAL = "Search..."
 
-# Functions and vars are available to other extensions as usual in python:
-# `space_interactions.orbital_platform.simulation_manager.some_public_function(x)`
-def some_public_function(x: int):
-    """This is a public function that can be called from other extensions."""
-    print(f"[space_interactions.orbital_platform.simulation_manager] some_public_function was called with {x}")
-    return x**x
-
+def get_sim_manager():
+    global _sim_manager
+    return _sim_manager
 
 # Any class derived from `omni.ext.IExt` in the top level module (defined in
 # `python.modules` of `extension.toml`) will be instantiated when the extension
@@ -68,6 +65,9 @@ class SimulationManager(omni.ext.IExt):
         """This is called every time the extension is activated."""
 
         self._ext_id = _ext_id
+
+        global _sim_manager
+        _sim_manager = self
 
         print("[space_interactions.orbital_platform.simulation_manager] Extension startup")
 
@@ -87,6 +87,10 @@ class SimulationManager(omni.ext.IExt):
         self._frame_num = 0
         self._prev_time: datetime = None
         self._curr_time: datetime = None
+        self.satellitesPrim = None
+        self.satPositions = None
+        self.satVelocities = None
+        self.satScales = None
         self._load_satellites_json()
         self._initialize_satellites_geom()
 
@@ -194,7 +198,7 @@ class SimulationManager(omni.ext.IExt):
                 # Position calc
                 wp.launch(sgp4kernel, dim=n, inputs=[pos, vel, td, out], device="cuda")
 
-                self.satPositions = out.numpy()# * self.scale
+                self.satPositions = out.numpy()
                 self.satellitesPrim.GetPositionsAttr().Set(self.satPositions)
 
                 # Scale calc
@@ -302,6 +306,19 @@ class SatelliteSelectionWindow(ui.Window):
 
         # Set the curve vertex counts attribute
         curve.CreateCurveVertexCountsAttr().Set([len(points)])
+
+        screen_ui = globe.get_globe_view()._screen_ui
+
+        # Maneuver camera
+        distance = 10000.0
+        camera_state = ViewportCameraState(screen_ui.camera_path)
+        start_pos = camera_state.position_world
+        sat_pos = get_sim_manager().satPositions[index, :]
+        sat_unit_vector = sat_pos / np.linalg.norm(sat_pos)
+        end_pos = sat_pos + sat_unit_vector * distance
+        end_pos = Gf.Vec3d(float(end_pos[0]), float(end_pos[1]), float(end_pos[2]))
+
+        asyncio.ensure_future(screen_ui._interpolate_position(camera_state, start_pos, end_pos))
 
     def clearSelectedSatellite(self) -> None:
         self._selected_sat.selected = False # type: ignore

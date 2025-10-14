@@ -140,6 +140,10 @@ class GlobeUI:
             self.__visible = v
             self.__frame.rebuild()
 
+    @property
+    def camera_path(self):
+        return self.__camera_path
+
     def unload(self):
         if self.__frame is not None:
             self.__frame = None
@@ -374,7 +378,7 @@ class GlobeUI:
     ############################################
     # CALLBACKS
     ############################################
-    async def __interpolate_position(
+    async def _interpolate_position(
             self,
             camera_state: ViewportCameraState,
             start: Gf.Vec3d,
@@ -417,7 +421,7 @@ class GlobeUI:
         if not self.__zoom_max > new_dist > self.__zoom_min:
             return
 
-        asyncio.ensure_future(self.__interpolate_position(camera_state, start_pos, new_pos))
+        asyncio.ensure_future(self._interpolate_position(camera_state, start_pos, new_pos))
 
     def on_scroll(self, input_value):
         camera_state = ViewportCameraState(self.__camera_path)
@@ -445,7 +449,7 @@ class GlobeUI:
             camera_state.set_target_world(Gf.Vec3d(0,0,0), True)
             return
 
-        asyncio.ensure_future(self.__interpolate_position(camera_state, start_pos, end_pos))
+        asyncio.ensure_future(self._interpolate_position(camera_state, start_pos, end_pos))
 
     def __on_feature_clicked(self, button: ui.Button, feature, image: Optional[ui.Image]) -> None:
         async def animate_stack(img: ui.Image, visible: bool):
