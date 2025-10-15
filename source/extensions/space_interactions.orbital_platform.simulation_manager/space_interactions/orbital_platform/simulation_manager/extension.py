@@ -31,6 +31,7 @@ import omni.earth_2_command_center.app.globe_view as globe
 
 import omni.kit.pipapi
 from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd
+from . import utils
 
 omni.kit.pipapi.install("skyfield")
 from skyfield.api import EarthSatellite, load, Timescale, Time, Distance
@@ -51,6 +52,10 @@ EMPTY_COMBO_VAL = "Search..."
 def get_sim_manager():
     global _sim_manager
     return _sim_manager
+
+def get_sim_ui():
+    global _sim_ui
+    return _sim_ui
 
 # Any class derived from `omni.ext.IExt` in the top level module (defined in
 # `python.modules` of `extension.toml`) will be instantiated when the extension
@@ -130,14 +135,14 @@ class SimulationManager(omni.ext.IExt):
         colors = []
         for sat in self.satellites:
 
-            positions.append(sat.pos)
-            velocities.append(sat.vel)
+            positions.append(sat.pos * self.scale)
+            velocities.append(sat.vel * self.scale)
             indices.append(0)
             oris.append(Gf.Quath(1, 0, 0, 0))
             colors.append(sat.color)
 
-        self.satPositions = np.array(positions) * self.scale
-        self.satVelocities = np.array(velocities) * self.scale
+        self.satPositions = np.array(positions)
+        self.satVelocities = np.array(velocities)
 
         # Scale calc
         n = len(self.satellites)
@@ -184,8 +189,6 @@ class SimulationManager(omni.ext.IExt):
                         geocentric = sat.at(sim_time)
                         self.satPositions[i,:] = geocentric.xyz.km * self.scale
                         self.satVelocities[i, :] = geocentric.velocity.km_per_s * self.scale
-                        if sat.selected: selectedSatelliteIdx = i
-
 
                 # Get dimension for warp kernel
                 n = len(self.satellites)
@@ -208,8 +211,9 @@ class SimulationManager(omni.ext.IExt):
                 self.satScales = scalesOut.numpy()
 
                 # if the user has a seleceted satellite, 10x the scale
-                if selectedSatelliteIdx != None:
-                    self.satScales[selectedSatelliteIdx] *= 10
+                if get_sim_ui().selectedSatIdx != None:
+                    self.satScales[get_sim_ui().selectedSatIdx] *= 10
+                    get_sim_ui().set_orbit_scale(self.get_camera_position())
 
                 self.satellitesPrim.GetScalesAttr().Set(self.satScales)
 
@@ -237,11 +241,16 @@ class SatelliteSelectionWindow(ui.Window):
     def __init__(self, satellites: list[EarthSatellite], timescale: Timescale) -> None:
         super().__init__("Satellite Selection", DockPreference.RIGHT, width=300)
 
+        global _sim_ui
+        _sim_ui = self
+
         self._satellites = satellites
         self._selected_sat = None
         self._stage = omni.usd.get_context().get_stage()
         self.selectedSatIdx = None
         self._timescale = timescale
+        self._orbit_curve_path = "/World/orbit/curve"
+        self._orbit_curve = None
 
         with self.frame:
             with ui.VStack():
@@ -279,8 +288,8 @@ class SatelliteSelectionWindow(ui.Window):
                 break
 
     def selecteSatellite(self, sat, index) -> None:
-        sat.selected = True
-        self.selectedSat = sat
+        self._selected_sat = sat
+        self._selected_sat.selected = True
         self.selectedSatIdx = index
 
         points = []
@@ -292,24 +301,24 @@ class SatelliteSelectionWindow(ui.Window):
             points.append(Gf.Vec3f(pos[0], pos[1], pos[2]))
             widths.append(10.0)
 
-        curve_path = "/World/orbit/curve"
-        curve = UsdGeom.NurbsCurves.Define(self._stage, curve_path)
+        self._orbit_curve = UsdGeom.NurbsCurves.Define(self._stage, self._orbit_curve_path)
 
         # Set the points attribute
-        curve.CreatePointsAttr().Set(Vt.Vec3fArray(points))
+        self._orbit_curve.CreatePointsAttr().Set(Vt.Vec3fArray(points))
 
         # Set the widths
-        curve.CreateWidthsAttr(Vt.FloatArray(widths))
+        self._orbit_curve.CreateWidthsAttr(Vt.FloatArray(widths))
 
         # Set the color
-        curve.CreateDisplayColorAttr(Vt.Vec3fArray(1, Gf.Vec3f(1.0, 1.0, 0.0)), writeSparsely=False)
+        self._orbit_curve.CreateDisplayColorAttr(Vt.Vec3fArray(1, Gf.Vec3f(1.0, 1.0, 0.0)), writeSparsely=False)
 
         # Set the curve vertex counts attribute
-        curve.CreateCurveVertexCountsAttr().Set([len(points)])
+        self._orbit_curve.CreateCurveVertexCountsAttr().Set([len(points)])
 
+        # Get screen UI handle and interpolate camera to see selected satellite
         screen_ui = globe.get_globe_view()._screen_ui
 
-        # Maneuver camera
+        # Maneuver camera to sit back 10,000 units
         distance = 10000.0
         camera_state = ViewportCameraState(screen_ui.camera_path)
         start_pos = camera_state.position_world
@@ -323,21 +332,25 @@ class SatelliteSelectionWindow(ui.Window):
     def clearSelectedSatellite(self) -> None:
         self._selected_sat.selected = False # type: ignore
         self._selected_sat = None
-        self.selectedSatIdx = -1
-        self._stage.RemovePrim("/World/orbit/curve")
+        self.selectedSatIdx = None
+        self._stage.RemovePrim(self._orbit_curve_path)
+
+    def set_orbit_scale(self, cam_pos) -> None:
+        pts = self._orbit_curve.GetPointsAttr().Get()
+        widths = []
+        for pt in pts:
+            width = utils.distance(cam_pos, pt) * 0.0005
+            widths.append(width)
+        self._orbit_curve.GetWidthsAttr().Set(Vt.FloatArray(widths))
 
     async def _dock(self) -> None:
         '''Dock window in the viewport window.'''
 
-        for i in range(10):
-            await omni.kit.app.get_app().next_update_async()
+        await omni.kit.app.get_app().next_update_async()
         viewportWindow = ui.Workspace.get_window("Globe View")
-        #viewportWindow = get_active_viewport_window()
-
-        width = viewportWindow.width
 
         # Dock select satellite window
-        self.dock_in(viewportWindow, ui.DockPosition.RIGHT, self.width / width)
+        self.dock_in(viewportWindow, ui.DockPosition.RIGHT, 0.10)
 
 @wp.kernel
 def sgp4kernel(pos: wp.array(dtype=wp.vec3), vel: wp.array(dtype=wp.vec3), s: float, out: wp.array(dtype=wp.vec3)): # type: ignore
