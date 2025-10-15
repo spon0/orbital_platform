@@ -1,0 +1,1 @@
+# USD Explorer Setup Extension [space_interactions.usd_explorer_setup]

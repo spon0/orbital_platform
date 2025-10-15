@@ -18,3 +18,6 @@ repo_build.prebuild_copy {
 define_app("space_interactions.orbital_platform.app.kit")
 define_app("space_interactions.orbital_platform.app_gdn.kit")
 define_app("space_interactions.orbital_platform.app_streaming.kit")
+define_app("space_interactions.usd_explorer.kit")
+define_app("space_interactions.usd_explorer_streaming.kit")
+define_app("space_interactions.usd_explorer_ovc.kit")

@@ -1,0 +1,192 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+title = "USD Explorer Omniverse Cloud Streaming"
+version = "0.1.0"
+description = "Configuration for Omniverse Cloud streaming deployments of USD Explorer"
+keywords = ["experience", "app", "dev", "streaming", "ovc"]
+template_name = "omni.ovc_streaming_configuration"
+
+[dependencies]
+"space_interactions.usd_explorer" = {}  # Application kit file
+"omni.kit.livestream.webrtc" = {}  # Livestream extension
+"omni.ujitso.client" = {} # Caching
+"omni.cloud.open_stage" = {}  # Nucleus Connection
+
+
+[settings.app]
+fastShutdown = true
+name = "USD Explorer OVC Streaming"  # Application Display Name
+ovc_deployment = true
+renderer.skipWhileMinimized = true
+renderer.resolution.height = 1080
+renderer.resolution.width = 1920
+useFabricSceneDelegate = false
+vsync = false  # Vsync disabled by default, can be set to true for L40 or similar
+window.scaleToMonitor = true
+window.height = 1080
+window.width = 1920
+
+[settings]
+rtx.post.aa.op = 3
+rtx.hydra.geometrystreaming.gpuBudgetMB = 64000
+rtx.hydra.geometrystreaming.instanceBudget = 14388608
+rtx.verifyDriverVersion.enabled = false
+rtx-transient.dlssg.enabled = true
+rtx-transient.scenedb.forceMaxTLASInstancesLimit = 15000000
+rtx-transient.scenedb.instanceBudget=1000000
+
+[settings.app.extensions]
+registryEnabled = true
+supportedTargets.platform = []  # Skip checking supported platform/config when building
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+    "${app}/../exts",
+    "${app}/../apps",
+    "${app}/../extscache"
+]
+
+[settings.app.file]
+ignoreUnsavedOnExit = true
+
+[settings.app.livestream]
+maxPushStreamDataAttempts = 1  # Number of attempts to push stream data
+skipCapture = 1  # livestream skipCapture ON for local streaming
+webrtcEtli = true  # Only log error or critical level issues.
+
+[settings.app.rendergraph]
+maxFramesInFlight = 2
+
+[settings.exts."omni.kit.renderer.core"]
+present.enabled = true  # Enable the present thread
+present.presentAfterRendering = true  # Ensure the present thread waits for the rendering to complete[settings]
+
+[settings.exts."omni.kit.window.filepicker"]
+show_only_collections.2 = ""
+show_add_new_connection = false  # Do not allow connections to new servers when running on OVC.
+
+[settings.exts."omni.kit.window.content_browser"]
+show_only_collections.2 = ""
+
+[settings.UJITSO]
+# UJITSO supports loading cached representations of assets.
+# These settings controls what is loaded from cache and where from.
+datastore.localCachePath = "/home/ubuntu/.nvidia-omniverse/ujitso/localCachePath"
+enabled = true	# Enable or disable the use of UJITSO cache.
+geometry = true
+
+[settings.persistent.UJITSO]
+geometry = true
+
+[template]
+type = "ApplicationLayerTemplate" # Repo Template Metadata
+
+
+########################################################################################################################
+# BEGIN GENERATED PART (Remove from 'BEGIN' to 'END' to regenerate)
+########################################################################################################################
+
+# Kit SDK Version: 106.5.0+release.162521.d02c707b.gl
+
+# Exact Version dependencies:
+# 	omni.kit.converter.common-503.3.1
+# 	omni.kit.converter.dgn-503.3.6
+# 	omni.kit.converter.dgn_core-503.3.12
+# 	omni.kit.converter.hoops-504.4.9
+# 	omni.kit.converter.hoops_core-504.5.4
+# 	omni.kit.converter.jt-503.2.6
+# 	omni.kit.converter.jt_core-503.2.9
+# 	omni.kit.window.modifier.titlebar-105.2.16
+# 	omni.scene.optimizer.core-106.1.12
+# 	omni.scene.optimizer.ui-106.1.12
+# 	omni.services.convert.asset-504.2.7
+# 	omni.services.convert.cad-503.2.8
+
+# Version lock for all dependencies:
+[settings.app.exts]
+enabled = [
+	"omni.cloud.open_stage-1.0.5",
+	"omni.kit.asset_converter-2.8.9",
+	"omni.kit.browser.asset-1.3.11",
+	"omni.kit.browser.core-2.3.11",
+	"omni.kit.browser.folder.core-1.10.1",
+	"omni.kit.browser.material-1.6.0",
+	"omni.kit.browser.sample-1.4.8",
+	"omni.kit.collaboration.viewport.camera-2.0.18",
+	"omni.kit.converter.cad-202.7.0",
+	"omni.kit.livestream.core-6.1.0",
+	"omni.kit.livestream.webrtc-6.0.0",
+	"omni.kit.markup.core-1.2.20",
+	"omni.kit.markup.playlist-0.0.5",
+	"omni.kit.ngsearch-0.3.3",
+	"omni.kit.playlist.core-1.3.4",
+	"omni.kit.prim.icon-1.0.14",
+	"omni.kit.search.service-0.1.12",
+	"omni.kit.stage_column.payload-2.0.0",
+	"omni.kit.streamsdk.plugins-6.2.1",
+	"omni.kit.thumbnails.usd-1.0.9",
+	"omni.kit.timeline.minibar-1.2.9",
+	"omni.kit.tool.asset_importer-2.12.6",
+	"omni.kit.tool.camera_playlist-1.3.1",
+	"omni.kit.tool.markup-1.2.69",
+	"omni.kit.tool.measure-105.2.7",
+	"omni.kit.tool.remove_unused.controller-0.1.3",
+	"omni.kit.tool.remove_unused.core-0.1.2",
+	"omni.kit.tool.teleport-106.1.0",
+	"omni.kit.usd_explorer.main.menubar-1.0.38",
+	"omni.kit.usd_explorer.render-1.0.2",
+	"omni.kit.usd_explorer.tooltip-1.0.1",
+	"omni.kit.usd_explorer.window.welcome-1.0.7",
+	"omni.kit.viewport.menubar.bottom-1.0.5",
+	"omni.kit.viewport.menubar.framerate-1.0.9",
+	"omni.kit.viewport.menubar.lighting-106.0.2",
+	"omni.kit.viewport.menubar.markup-104.1.26",
+	"omni.kit.viewport.menubar.nav_bar_toggle-1.0.3",
+	"omni.kit.viewport.menubar.timeline-1.0.2",
+	"omni.kit.viewport.menubar.waypoint-104.2.16",
+	"omni.kit.viewport.navigation.camera_manipulator-106.1.4",
+	"omni.kit.viewport.navigation.capture_no_ansel-1.0.17",
+	"omni.kit.viewport.navigation.core-1.0.29",
+	"omni.kit.viewport.navigation.markup-1.0.30",
+	"omni.kit.viewport.navigation.measure-1.0.5",
+	"omni.kit.viewport.navigation.section-1.0.4",
+	"omni.kit.viewport.navigation.teleport-1.0.16",
+	"omni.kit.viewport.navigation.usd_explorer.bundle-1.0.14",
+	"omni.kit.viewport.navigation.waypoint-1.0.22",
+	"omni.kit.waypoint.core-1.4.57",
+	"omni.kit.waypoint.playlist-1.0.8",
+	"omni.kit.widget.material_preview-1.0.16",
+	"omni.kit.widget.zoombar-1.0.5",
+	"omni.kit.widgets.custom-1.0.9",
+	"omni.kit.window.material-1.6.2",
+	"omni.kit.window.section-107.0.2",
+	"omni.light_rigs-106.3.7",
+	"omni.scene.optimizer.bundle-106.1.12",
+	"omni.services.client-0.5.3",
+	"omni.services.core-1.9.0",
+	"omni.services.facilities.base-1.0.4",
+	"omni.services.facilities.monitoring.metrics-0.3.0",
+	"omni.services.facilities.monitoring.progress-0.2.4",
+	"omni.services.pip_archive-0.13.11",
+	"omni.services.transport.client.base-1.2.4",
+	"omni.services.transport.client.http_async-1.4.0",
+	"omni.services.transport.server.base-1.1.1",
+	"omni.services.transport.server.http-1.3.1",
+	"omni.usd.metrics.assembler-106.5.0",
+	"omni.usd.metrics.assembler.ui-106.5.0",
+	"omni.usd.schema.metrics.assembler-106.5.0",
+	"omni.warp.core-1.5.0",
+]
+
+########################################################################################################################
+# END GENERATED PART
+########################################################################################################################

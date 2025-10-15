@@ -30,7 +30,7 @@ import omni.earth_2_command_center.app.core as earth2core
 import omni.earth_2_command_center.app.globe_view as globe
 
 import omni.kit.pipapi
-from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd
+from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd, Tf
 from . import utils
 
 omni.kit.pipapi.install("skyfield")
@@ -83,11 +83,11 @@ class SimulationManager(omni.ext.IExt):
 
         self._usd_stage = omni.usd.get_context().get_stage()
 
-        self.satellites = []
+        self.satellites: list[EarthSatellite] = []
         self.timestepsPerUpdate = 60
         self.scale = globe.get_globe_view()._earth_radius / WGS84_RADIUS
         self.speed = 1.0
-        self._sat_distace_scaler : float = 0.00005
+        self._sat_distace_scaler : float = 0.001
         self._timescale = load.timescale()
         self._frame_num = 0
         self._prev_time: datetime = None
@@ -95,6 +95,8 @@ class SimulationManager(omni.ext.IExt):
         self.satellitesPrim = None
         self.satPositions = None
         self.satVelocities = None
+        self.satIndices = None
+        self.satOrientations = None
         self.satScales = None
         self._load_satellites_json()
         self._initialize_satellites_geom()
@@ -111,50 +113,63 @@ class SimulationManager(omni.ext.IExt):
             sat = EarthSatellite(line1=tle['TLE_LINE1'], line2=tle['TLE_LINE2'], name=tle['OBJECT_NAME'], ts=ts)
             sat.color = SATTYPE_COLOR_MAPPING[tle['OBJECT_TYPE']]
             geocentric = sat.at(t)
-            sat.pos = geocentric.xyz.km
-            sat.vel = geocentric.velocity.km_per_s
+            pos, vel = geocentric.frame_xyz_and_velocity(framelib.itrs)
+            sat.pos = pos.km
+            sat.vel = vel.km_per_s
             sat.id = tle['NORAD_CAT_ID'].rjust(5, '0')
             sat.selected = False
             self.satellites.append(sat)
 
     def _initialize_satellites_geom(self):
+        # Sphere geometry instance
         protoPath = "/World/Prototypes/Sphere"
         protoPrim = UsdGeom.Sphere.Define(self._usd_stage, protoPath)
-        protoPrim.GetRadiusAttr().Set(15)
+        protoPrim.GetRadiusAttr().Set(1)
+
+        # Satellite geometry instance
+        proto_sat_path = "/World/Prototypes/Satellite"
+        proto_sat : Usd.Prim = UsdGeom.Xform.Define(self._usd_stage, Sdf.Path(proto_sat_path)).GetPrim()
+        proto_sat.GetReferences().AddReference(
+            assetPath=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sat2.usda')
+        )
 
         ptInstancePath = "/World/satellites"
         self.satellitesPrim = UsdGeom.PointInstancer.Define(self._usd_stage, ptInstancePath)
-        self.satellitesPrim.GetPrototypesRel().AddTarget(protoPath)
+        self.satellitesPrim.GetPrototypesRel().SetTargets([protoPath, proto_sat_path])
 
-        if len(self.satellites) == 0: return
+        n = len(self.satellites)
 
-        positions = []
-        velocities = []
-        oris = []
-        indices = []
+        if n == 0: return
+
+        self.satPositions = np.zeros((n, 3))
+        self.satVelocities = np.zeros((n, 3))
+        self.satOrientations = np.zeros((n, 4))
+        self.satIndices = np.zeros(n)
+        self.satScales = np.zeros((n, 3))
+
         colors = []
-        for sat in self.satellites:
+        for i, sat in enumerate(self.satellites):
+            # Pack to Gf.Vec3d and scale to our coordinate frame
+            pos = utils.to_vec3d(sat.pos * self.scale)
+            vel = utils.to_vec3d(sat.vel * self.scale)
+            lookAt = pos + vel
+            mat = Gf.Matrix4d().SetLookAt(pos, lookAt, -pos)
+            qd = mat.ExtractRotationQuat()
+            qh = Gf.Quath(qd)
 
-            positions.append(sat.pos * self.scale)
-            velocities.append(sat.vel * self.scale)
-            indices.append(0)
-            oris.append(Gf.Quath(1, 0, 0, 0))
+            self.satPositions[i, :] = pos
+            self.satVelocities[i, :] = vel
+            self.satOrientations[i, :] = [qh.imaginary[0], qh.imaginary[1], qh.imaginary[2], qh.real]
+            scale = utils.distance(self.get_camera_position(), pos) * self._sat_distace_scaler
+            self.satScales[i] = [scale, scale, scale]
+            self.satIndices[i] = 0
+
             colors.append(sat.color)
 
-        self.satPositions = np.array(positions)
-        self.satVelocities = np.array(velocities)
-
-        # Scale calc
-        n = len(self.satellites)
-        scalesOut = wp.empty(shape=n, dtype=wp.vec3, device="cuda")
-        pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
-        wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, scalesOut], device="cuda")
-        self.satScales = scalesOut.numpy()
-
         self.satellitesPrim.GetPositionsAttr().Set(self.satPositions)
-        self.satellitesPrim.GetOrientationsAttr().Set(oris)
+        self.satellitesPrim.GetOrientationsAttr().Set(self.satOrientations)
         self.satellitesPrim.GetScalesAttr().Set(self.satScales)
-        self.satellitesPrim.GetProtoIndicesAttr().Set(indices)
+        self.satellitesPrim.GetProtoIndicesAttr().Set(self.satIndices)
         primvarApi = UsdGeom.PrimvarsAPI(self.satellitesPrim)
         diffuse_color_primvar = primvarApi.CreatePrimvar(
             "primvars:displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.varying
@@ -180,15 +195,26 @@ class SimulationManager(omni.ext.IExt):
             self._prev_time = self._curr_time
             self._curr_time = utc_time
 
-            selectedSatelliteIdx = None
-
             if len(self.satellites) > 0:
                 # Update any pos/vel for whose turn it is
                 for i, sat in enumerate(self.satellites):
                     if self._frame_num % self.timestepsPerUpdate == sat.updateIdx or sat.selected:
+
                         geocentric = sat.at(sim_time)
-                        self.satPositions[i,:] = geocentric.xyz.km * self.scale
-                        self.satVelocities[i, :] = geocentric.velocity.km_per_s * self.scale
+                        pos, vel = geocentric.frame_xyz_and_velocity(framelib.itrs)
+                        sat.pos = pos.km
+                        sat.vel = vel.km_per_s
+                        # Pack to Gf.Vec3d and scale to our coordinate frame
+                        pos = utils.to_vec3d(sat.pos * self.scale)
+                        vel = utils.to_vec3d(sat.vel * self.scale)
+                        lookAt = pos + vel
+                        mat = Gf.Matrix4d().SetLookAt(pos, lookAt, -pos)
+                        qd = mat.ExtractRotationQuat()
+                        qh = Gf.Quath(qd)
+
+                        self.satPositions[i, :] = pos
+                        self.satVelocities[i, :] = vel
+                        self.satOrientations[i, :] = [qh.imaginary[0], qh.imaginary[1], qh.imaginary[2], qh.real]
 
                 # Get dimension for warp kernel
                 n = len(self.satellites)
@@ -210,9 +236,9 @@ class SimulationManager(omni.ext.IExt):
                 wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, scalesOut], device="cuda")
                 self.satScales = scalesOut.numpy()
 
-                # if the user has a seleceted satellite, 10x the scale
+                # if the user has a seleceted satellite
                 if get_sim_ui().selectedSatIdx != None:
-                    self.satScales[get_sim_ui().selectedSatIdx] *= 10
+                    #self.satScales[get_sim_ui().selectedSatIdx] *= 20
                     get_sim_ui().set_orbit_scale(self.get_camera_position())
 
                 self.satellitesPrim.GetScalesAttr().Set(self.satScales)
@@ -287,18 +313,24 @@ class SatelliteSelectionWindow(ui.Window):
                 self.selecteSatellite(sat, i)
                 break
 
-    def selecteSatellite(self, sat, index) -> None:
+    def selecteSatellite(self, sat: EarthSatellite, index: int) -> None:
         self._selected_sat = sat
         self._selected_sat.selected = True
         self.selectedSatIdx = index
 
         points = []
         widths = []
+
         now = self._timescale.from_datetime(earth2core.get_state().get_time_manager().current_utc_time)
-        times = np.linspace(0, 120 * 60.0 , 360)
+        # Get the orbital period in days
+        period_days = utils.get_satellite_period(sat).total_seconds() / (86400.0) # Period is in seconds
+        times = self._timescale.linspace(now, now + period_days, 360)
         for t in times:
-            pos = sat.at(now + (t/86400)).xyz.km * globe.get_globe_view()._earth_radius / WGS84_RADIUS
-            points.append(Gf.Vec3f(pos[0], pos[1], pos[2]))
+            geocentric = sat.at(t)
+            pos = geocentric.frame_xyz(framelib.itrs)
+            # Pack to Gf.Vec3d and scale to our coordinate frame
+            pos = utils.to_vec3f(pos.km * get_sim_manager().scale)
+            points.append(pos)
             widths.append(10.0)
 
         self._orbit_curve = UsdGeom.NurbsCurves.Define(self._stage, self._orbit_curve_path)
@@ -314,6 +346,11 @@ class SatelliteSelectionWindow(ui.Window):
 
         # Set the curve vertex counts attribute
         self._orbit_curve.CreateCurveVertexCountsAttr().Set([len(points)])
+
+        # Change geometry for selected satellite
+        indices = [0] * len(get_sim_manager().satellites)
+        indices[self.selectedSatIdx] = 1
+        get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
 
         # Get screen UI handle and interpolate camera to see selected satellite
         screen_ui = globe.get_globe_view()._screen_ui
@@ -334,6 +371,10 @@ class SatelliteSelectionWindow(ui.Window):
         self._selected_sat = None
         self.selectedSatIdx = None
         self._stage.RemovePrim(self._orbit_curve_path)
+
+        # Change geometry for unselected satellite
+        indices = [0] * len(get_sim_manager().satellites)
+        get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
 
     def set_orbit_scale(self, cam_pos) -> None:
         pts = self._orbit_curve.GetPointsAttr().Get()
