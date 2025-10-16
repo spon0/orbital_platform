@@ -46,6 +46,8 @@ from .image_delegate import ImageDelegate
 
 from pxr import UsdGeom, Sdf, Tf, Usd, Gf
 
+GLOBE_VIEW_SETUP: int = carb.events.type_from_string("omni.earth_2_command_center.app.globe_view.GLOBE_VIEW_SETUP")
+
 def get_globe_view():
     global _globe_view
     return _globe_view
@@ -319,6 +321,9 @@ class WindowExtension(omni.ext.IExt):
         self.register_feature_type_delegate(features_api.Image, ImageDelegate)
 
         self._await_setup = None
+
+        omni.earth_2_command_center.app.core.get_state().get_globe_view_event_stream().push(GLOBE_VIEW_SETUP)
+        omni.earth_2_command_center.app.core.get_state().get_globe_view_event_stream().pump()
 
     # start/stop automatic camera orbit
     def _toggle_rotation(self):

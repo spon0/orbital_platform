@@ -32,6 +32,7 @@ from omni.kit.viewport.utility import get_active_viewport_camera_path, get_activ
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 
 from omni.earth_2_command_center.app.geo_utils import get_geo_converter
+import omni.earth_2_command_center.app.core as earth2core
 
 from .reference_manager import ReferenceManager
 
@@ -39,6 +40,8 @@ BINDINGS = {
     "GlobeTumbleGesture": "LeftButton",
     "GlobeZoomGesture": "RightButton"
 }
+
+CAMERA_POS_CHANGED: int = carb.events.type_from_string("omni.earth_2_command_center.app.globe_view.CAMERA_POS_CHANGED")
 
 class CameraGestureManager(sc.GestureManager):
     """
@@ -68,6 +71,8 @@ class GlobeZoomGesture(ZoomGesture):
         self.__zoom_min = settings.get_as_int("/exts/omni.earth_2_command_center.app.globe_view/zoom_min")
         self.__zoom_max = settings.get_as_int("/exts/omni.earth_2_command_center.app.globe_view/zoom_max")
         self._earth_radius = get_geo_converter().sphere_radius
+
+        self._globe_event_stream = earth2core.get_state().get_globe_view_event_stream()
 
     def on_mouse_move(self, mouse_moved):
         """
@@ -99,9 +104,17 @@ class GlobeZoomGesture(ZoomGesture):
 
         self._accumulate_values('move', 0, 0, amount)
 
+        self._globe_event_stream.push(CAMERA_POS_CHANGED)
+        self._globe_event_stream.pump()
+
 
 # Rename for global scope
 class GlobeTumbleGesture(TumbleGesture):
+    def __init__(self, model, configure_model = None, name = None, *args, **kwargs):
+        super().__init__(model, configure_model, name, *args, **kwargs)
+
+        self._globe_event_stream = earth2core.get_state().get_globe_view_event_stream()
+
     def on_mouse_move(self, mouse_moved):
         viewport = get_active_viewport()
         res = viewport.resolution
@@ -127,6 +140,9 @@ class GlobeTumbleGesture(TumbleGesture):
         self._accumulate_values('tumble', mouse_moved[0] * speed[0] * -90,
                                           mouse_moved[1] * speed[1] * 90,
                                           0)
+
+        self._globe_event_stream.push(CAMERA_POS_CHANGED)
+        self._globe_event_stream.pump()
 
 class GlobeGestureContainer:
     def __init__(

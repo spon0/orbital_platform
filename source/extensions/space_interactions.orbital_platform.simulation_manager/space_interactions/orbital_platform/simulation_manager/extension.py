@@ -12,10 +12,12 @@ import os
 import asyncio
 import json
 import numpy as np
+import time
 import math
 from datetime import datetime, timedelta
 import warp as wp
 
+import carb
 import omni.ext
 import omni.usd
 import omni.ui as ui
@@ -74,11 +76,19 @@ class SimulationManager(omni.ext.IExt):
         global _sim_manager
         _sim_manager = self
 
+        self._set_settings()
+
         print("[space_interactions.orbital_platform.simulation_manager] Extension startup")
 
         self._time_manager = earth2core.get_state().get_time_manager()
         self._timestep_subscription = self._time_manager.get_utc_event_stream().create_subscription_to_pop(
             fn=self._on_timestep
+        )
+        self._camera_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop(
+            fn=self._on_camera_move
+        )
+        self._globe_view_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop(
+            fn=self._on_globe_view_setup
         )
 
         self._usd_stage = omni.usd.get_context().get_stage()
@@ -102,6 +112,9 @@ class SimulationManager(omni.ext.IExt):
         self._initialize_satellites_geom()
 
         self._satellite_selection_widget = SatelliteSelectionWindow(self.satellites, self._timescale)
+
+        self._scale_update_rate = 1/60
+        self._last_scale_update = float()
 
     def _load_satellites_json(self, path:str = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup.tle')):
         tles = json.load(open(path))
@@ -181,8 +194,7 @@ class SimulationManager(omni.ext.IExt):
             sat.updateIdx = np.random.randint(self.timestepsPerUpdate) # type: ignore
 
     def _on_timestep(self, event):
-        if event.type in [
-                earth2core.time_manager.UTC_CURRENT_TIME_CHANGED ]:
+        if event.type == earth2core.time_manager.UTC_CURRENT_TIME_CHANGED:
 
             utc_time = self._time_manager.current_utc_time
             sim_time = self._timescale.from_datetime(utc_time)
@@ -196,7 +208,7 @@ class SimulationManager(omni.ext.IExt):
             self._curr_time = utc_time
 
             if len(self.satellites) > 0:
-                # Update any pos/vel for whose turn it is
+                # Update any pos/vel/orientation for whose turn it is
                 for i, sat in enumerate(self.satellites):
                     if self._frame_num % self.timestepsPerUpdate == sat.updateIdx or sat.selected:
 
@@ -216,32 +228,11 @@ class SimulationManager(omni.ext.IExt):
                         self.satVelocities[i, :] = vel
                         self.satOrientations[i, :] = [qh.imaginary[0], qh.imaginary[1], qh.imaginary[2], qh.real]
 
-                # Get dimension for warp kernel
-                n = len(self.satellites)
-                # Pack all pos/vels
-                pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
-                vel = wp.from_numpy(self.satVelocities, dtype=wp.vec3, device="cuda")
-                td = (self._curr_time - self._prev_time).total_seconds()
-                out = wp.empty(shape=n, dtype=wp.vec3, device="cuda") # type: ignore
+                # Move points to new positions
+                self.update_satellite_states()
 
-                # Position calc
-                wp.launch(sgp4kernel, dim=n, inputs=[pos, vel, td, out], device="cuda")
-
-                self.satPositions = out.numpy()
-                self.satellitesPrim.GetPositionsAttr().Set(self.satPositions)
-
-                # Scale calc
-                scalesOut = wp.empty(shape=n, dtype=wp.vec3, device="cuda")
-
-                wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, scalesOut], device="cuda")
-                self.satScales = scalesOut.numpy()
-
-                # if the user has a seleceted satellite
-                if get_sim_ui().selectedSatIdx != None:
-                    #self.satScales[get_sim_ui().selectedSatIdx] *= 20
-                    get_sim_ui().set_orbit_scale(self.get_camera_position())
-
-                self.satellitesPrim.GetScalesAttr().Set(self.satScales)
+                # Update scales based on new positions
+                self.update_satellite_scales()
 
             self._frame_num += 1
 
@@ -261,6 +252,60 @@ class SimulationManager(omni.ext.IExt):
         to clean up the extension state."""
         print("[space_interactions.orbital_platform.simulation_manager] Extension shutdown")
 
+    def _on_camera_move(self, event):
+        if event.type == globe.gestures.CAMERA_POS_CHANGED:
+            self.update_satellite_scales()
+
+    def update_satellite_states(self):
+        '''Update UsdGeom.PointsInstancer point positions'''
+
+        # Get dimension for warp kernel
+        n = len(self.satellites)
+        # Pack all pos/vels
+        pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
+        vel = wp.from_numpy(self.satVelocities, dtype=wp.vec3, device="cuda")
+        td = (self._curr_time - self._prev_time).total_seconds()
+        out = wp.empty(shape=n, dtype=wp.vec3, device="cuda") # type: ignore
+
+        # Position calc
+        wp.launch(sgp4kernel, dim=n, inputs=[pos, vel, td, out], device="cuda")
+
+        self.satPositions = out.numpy()
+        self.satellitesPrim.GetPositionsAttr().Set(self.satPositions)
+
+    def update_satellite_scales(self):
+        '''Update UsdGeom.PointsInstancer point scales based on distance to camera. Additionally, update orbit curve if it is present.'''
+
+        # Cull calls that come too quickly
+        t = time.time()
+        if t - self._last_scale_update > self._scale_update_rate:
+
+            # Get dimension for warp kernel
+            n = len(self.satellites)
+
+            # Scale calc
+            out = wp.empty(shape=n, dtype=wp.vec3, device="cuda")
+            pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
+            wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, out], device="cuda")
+            self.satScales = np.clip(out.numpy(), 2.0, 500.0)
+
+            # if the user has a seleceted satellite
+            if get_sim_ui().selectedSatIdx != None:
+                #self.satScales[get_sim_ui().selectedSatIdx] *= 20
+                get_sim_ui().set_orbit_scale(self.get_camera_position())
+
+            self.satellitesPrim.GetScalesAttr().Set(self.satScales)
+
+            self._last_scale_update = t
+
+    def _set_settings(self):
+        settings = carb.settings.get_settings()
+        settings.set("/rtx/post/dlss/execMode", 3)
+
+    def _on_globe_view_setup(self, event):
+        if event.type == globe.extension.GLOBE_VIEW_SETUP:
+            self.update_satellite_scales()
+            earth2core.get_state().get_time_manager().get_timeline().play()
 
 class SatelliteSelectionWindow(ui.Window):
 
@@ -380,9 +425,10 @@ class SatelliteSelectionWindow(ui.Window):
         pts = self._orbit_curve.GetPointsAttr().Get()
         widths = []
         for pt in pts:
-            width = utils.distance(cam_pos, pt) * 0.0005
+            width = (utils.distance(cam_pos, pt) * 0.0002)**2
             widths.append(width)
-        self._orbit_curve.GetWidthsAttr().Set(Vt.FloatArray(widths))
+        widths_clamped = np.clip(widths, 1.0, 100.0)
+        self._orbit_curve.GetWidthsAttr().Set(Vt.FloatArray(widths_clamped))
 
     async def _dock(self) -> None:
         '''Dock window in the viewport window.'''

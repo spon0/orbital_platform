@@ -44,7 +44,7 @@ class TimeManager:
         self._tz = datetime.timezone.utc
         self._utc_start_time = datetime.datetime(2025, 10, 1, 0, 0, 0, tzinfo=self._tz)
         self._utc_end_time = datetime.datetime(2025, 10, 1, 23, 59, 0, tzinfo=self._tz)
-        self._utc_per_second = datetime.timedelta(seconds=30)
+        self._utc_per_second = datetime.timedelta(seconds=10)
         self._sync(self._utc_start_time)
 
     def get_timeline(self):
