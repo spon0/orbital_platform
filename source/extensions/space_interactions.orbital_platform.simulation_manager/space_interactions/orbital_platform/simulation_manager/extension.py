@@ -17,6 +17,7 @@ import math
 from datetime import datetime, timedelta
 import warp as wp
 from typing import List
+from functools import partial
 
 import carb
 import omni.ext
@@ -264,19 +265,15 @@ class SimulationManager(omni.ext.IExt):
                         ok = sat.update_feeds()
 
                         if not ok:
-                            def goto(satellite, index):
-                                get_sim_ui().select_satellite(satellite, index)
-
-                            goto_button = notify.NotificationButtonInfo("Select object", on_complete=lambda: goto(sat, i))
                             n = notify.post_notification(
                                 text=f"{sat.name} has triggered an anomaly",
                                 duration=5,
                                 hide_after_timeout=False,
                                 status=notify.NotificationStatus.INFO,
-                                button_infos=[goto_button]
+                                button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sim_ui().select_satellite, sat=sat, index=i))]
                             )
 
-                            sat.reset_feeds()
+                            # sat.reset_feeds()
 
                 # Move points to new positions
                 self.update_satellite_states()
