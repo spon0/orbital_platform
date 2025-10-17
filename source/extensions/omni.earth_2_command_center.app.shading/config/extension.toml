@@ -29,7 +29,7 @@ preview_image = "data/preview.png"
 
 # Use omni.ui to build simple UI
 [dependencies]
-"omni.client" = {}
+#"omni.client" = {}
 "omni.ui" = {}
 "omni.usd" = {}
 "omni.kit.commands" = {}

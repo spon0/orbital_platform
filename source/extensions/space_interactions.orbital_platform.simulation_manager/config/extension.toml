@@ -29,7 +29,6 @@ repository = "https://github.com/NVIDIA-Omniverse/kit-app-template"  # URL of th
 "omni.warp.core" = {}
 "omni.kit.pip_archive" = {} # for skyfield
 
-
 [settings]
 
 
