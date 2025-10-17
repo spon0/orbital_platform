@@ -1,3 +1,4 @@
+from typing import Optional, Union
 from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd, Tf
 
 import omni.kit.pipapi
@@ -6,6 +7,7 @@ from skyfield.api import EarthSatellite, load, Timescale, Time, Distance
 from skyfield import framelib
 
 from . import utils
+from .data_feed import DataFeed
 import numpy as np
 
 class Satellite(EarthSatellite):
@@ -27,8 +29,30 @@ class Satellite(EarthSatellite):
         self.update_idx = 1
         self.proto_index = 0
 
+        self.data_feeds: dict[str, DataFeed] = dict()
+
     def set_scale(self, scale):
         self.scale = scale
+
+    def add_data_feed(self, df: DataFeed):
+
+        self.data_feeds[df.name] = df
+
+    def get_data_feed(self, key: str) -> Optional[DataFeed]:
+        if key not in self.data_feeds: return None
+
+        return self.data_feeds[key]
+
+    def update_feeds(self) -> bool:
+        ok = True
+        for df in self.data_feeds.values():
+            ok &= df.update()
+
+        return ok
+
+    def reset_feeds(self):
+        for df in self.data_feeds.values():
+            df.reset()
 
     def get_state(self, time: Time) -> tuple[Gf.Vec3d, Gf.Vec3d, list[float]]:
         '''Call SGP4 and pack to Gf.Vec3d and quaternion and scale to our coordinate frame.'''
