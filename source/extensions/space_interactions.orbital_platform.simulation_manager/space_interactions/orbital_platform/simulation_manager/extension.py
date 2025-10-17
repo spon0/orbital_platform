@@ -21,7 +21,7 @@ import carb
 import omni.ext
 import omni.usd
 import omni.ui as ui
-from omni.ui import DockPreference
+from omni.ui import DockPreference, DockPosition
 from omni.kit.viewport.utility import get_active_viewport, get_active_viewport_window
 from omni.timeline import TimelineEventType
 from omni.kit.widget.searchable_combobox import build_searchable_combo_widget, ComboBoxListDelegate
@@ -322,7 +322,7 @@ class SimulationManager(omni.ext.IExt):
 class SatelliteSelectionWindow(ui.Window):
 
     def __init__(self, satellites: list[Satellite], timescale: Timescale) -> None:
-        super().__init__("Satellite Selection", DockPreference.RIGHT, width=300)
+        super().__init__("Satellite Selection", width=300, height=100)
 
         global _sim_ui
         _sim_ui = self
@@ -443,11 +443,24 @@ class SatelliteSelectionWindow(ui.Window):
     async def _dock(self) -> None:
         '''Dock window in the viewport window.'''
 
-        await omni.kit.app.get_app().next_update_async()
-        viewportWindow = ui.Workspace.get_window("Globe View")
+        windowsToHide = [
+            "Content",
+            "Property",
+            "Render Settings"
+        ]
 
-        # Dock select satellite window
-        self.dock_in(viewportWindow, ui.DockPosition.TOP, 0.20)
+        await omni.kit.app.get_app().next_update_async()
+        dock_space = ui.Workspace.get_window("DockSpace")
+
+        for window in ui.Workspace.get_windows():
+            if window.title in windowsToHide:
+                window.visible = False
+
+        # Dock viewport
+
+        # Dock select satellite
+        ui.Workspace.get_window("Globe View").dock_in(dock_space, ui.DockPosition.LEFT, 0.80)
+        self.dock_in(dock_space, ui.DockPosition.RIGHT, 0.20)
 
 @wp.kernel
 def sgp4kernel(pos: wp.array(dtype=wp.vec3), vel: wp.array(dtype=wp.vec3), s: float, out: wp.array(dtype=wp.vec3)): # type: ignore
