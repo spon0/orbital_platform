@@ -87,6 +87,7 @@ class SimulationManager(omni.ext.IExt):
     # located on the filesystem.
     def on_startup(self, _ext_id):
         """This is called every time the extension is activated."""
+        print("[space_interactions.orbital_platform.simulation_manager] Extension startup")
 
         self._ext_id = _ext_id
 
@@ -95,16 +96,17 @@ class SimulationManager(omni.ext.IExt):
 
         self._set_settings()
 
-        print("[space_interactions.orbital_platform.simulation_manager] Extension startup")
-
         self._time_manager = earth2core.get_state().get_time_manager()
-        self._timestep_subscription = self._time_manager.get_utc_event_stream().create_subscription_to_pop(
+        self._timestep_subscription = self._time_manager.get_utc_event_stream().create_subscription_to_pop_by_type(
+            event_type=earth2core.time_manager.UTC_CURRENT_TIME_CHANGED,
             fn=self._on_timestep
         )
-        self._camera_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop(
+        self._camera_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop_by_type(
+            event_type=globe.gestures.CAMERA_POS_CHANGED,
             fn=self._on_camera_move
         )
-        self._globe_view_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop(
+        self._globe_view_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop_by_type(
+            event_type=globe.extension.GLOBE_VIEW_SETUP,
             fn=self._on_globe_view_setup
         )
 
