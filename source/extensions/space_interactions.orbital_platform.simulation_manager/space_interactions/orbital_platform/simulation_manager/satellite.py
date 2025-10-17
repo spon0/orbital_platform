@@ -19,7 +19,8 @@ class Satellite(EarthSatellite):
         self.proto_index = -1
         self.id: str = '00000'
         self.nominal_temperature: float = 0.
-        self.nominal_altitude: float = 0.
+        self.actual_temperature: float = 0.
+        self.altitude: float = 0.
         self.selected = False
         self.color = Gf.Vec3f(0, 0, 0)
         self.scale = 1.0
@@ -43,5 +44,7 @@ class Satellite(EarthSatellite):
         mat = Gf.Matrix4d().SetLookAt(pos, lookAt, -pos)
         qd = mat.ExtractRotationQuat()
         qh = Gf.Quath(qd)
+
+        self.actual_temperature += np.random.normal(self.nominal_temperature, 0.01)
 
         return (pos, vel, [qh.imaginary[0], qh.imaginary[1], qh.imaginary[2], qh.real])

@@ -30,11 +30,13 @@ import omni.kit.app
 
 import omni.earth_2_command_center.app.core as earth2core
 import omni.earth_2_command_center.app.globe_view as globe
+import omni.earth_2_command_center.app.geo_utils as geo_utils
 
 import omni.kit.pipapi
 from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd, Tf
 from . import utils
 from .satellite import Satellite
+from .style import example_window_style
 
 omni.kit.pipapi.install("skyfield")
 from skyfield.api import EarthSatellite, load, Timescale, Time, Distance
@@ -50,10 +52,7 @@ SAT_MODEL_PATHS = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sat2.usda'),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sat3.usda')
 ]
-# WGS84 vals in kilometer
-WGS84_SEMIMAJOR = 6378.137
-WGS84_SEMIMINOR = 6356.752314245
-WGS84_RADIUS = 6371.0
+
 EMPTY_COMBO_VAL = "Search..."
 
 def get_sim_manager():
@@ -100,7 +99,7 @@ class SimulationManager(omni.ext.IExt):
 
         self.satellites: list[Satellite] = []
         self.timestepsPerUpdate = 60
-        self.scale = globe.get_globe_view()._earth_radius / WGS84_RADIUS
+        self.scale = globe.get_globe_view()._earth_radius / utils.WGS84_RADIUS
         self.speed = 1.0
         self._sat_distace_scaler : float = 0.001
         self._timescale = load.timescale()
@@ -246,6 +245,8 @@ class SimulationManager(omni.ext.IExt):
                 # Update scales based on new positions
                 self.update_satellite_scales()
 
+                get_sim_ui().update_info()
+
             self._frame_num += 1
 
     def get_camera_position(self) -> wp.vec3:
@@ -335,25 +336,69 @@ class SatelliteSelectionWindow(ui.Window):
         self._orbit_curve_path = "/World/orbit/curve"
         self._orbit_curve = None
 
-        with self.frame:
-            with ui.VStack():
-                # Define the list of items for the combo box
-                itemList = []
-                for sat in satellites:
-                    item = f'{sat.name} -- {sat.id}'
-                    itemList.append(item)
+        self._temperature_model = ui.SimpleStringModel("")
+        self._latitude_model = ui.SimpleStringModel("")
+        self._longitude_model = ui.SimpleStringModel("")
+        self._altitude_model = ui.SimpleStringModel("")
 
-                # Add the searchable combo box to the UI
-                # Create the searchable combo box with the specified items and callback
-                searchable_combo_widget = build_searchable_combo_widget(
-                    combo_list=itemList,
-                    combo_index=-1,  # Start with no item selected
-                    combo_click_fn=self.satelliteComboClick,
-                    widget_height=18,
-                    default_value=EMPTY_COMBO_VAL,  # Placeholder text when no item is selected
-                    window_id="SearchableComboBoxWindow",
-                    delegate=ComboBoxListDelegate()  # Use the default delegate for item rendering
-                )
+        self.frame.style = example_window_style
+        self.frame.set_build_fn(self._build_ui)
+
+    def _build_ui(self):
+
+        with ui.VStack():
+            self._build_satellite_combobox()
+            with ui.ScrollingFrame():
+                with ui.VStack(height=0):
+                    self._build_satellite_positions()
+                    self._build_electrical_components()
+                    self._build_solar_panels()
+
+    def _build_satellite_combobox(self):
+        # Define the list of items for the combo box
+        itemList = []
+        for sat in self._satellites:
+            item = f'{sat.name} -- {sat.id}'
+            itemList.append(item)
+
+        # Add the searchable combo box to the UI
+        # Create the searchable combo box with the specified items and callback
+        build_searchable_combo_widget(
+            combo_list=itemList,
+            combo_index=-1,  # Start with no item selected
+            combo_click_fn=self.satelliteComboClick,
+            widget_height=18,
+            default_value=EMPTY_COMBO_VAL,  # Placeholder text when no item is selected
+            window_id="SearchableComboBoxWindow",
+            delegate=ComboBoxListDelegate()  # Use the default delegate for item rendering
+        )
+
+    def _build_satellite_positions(self):
+        with ui.CollapsableFrame("Position", collapsed=True, name="group"):
+            with ui.VStack(height=0, spacing=5):
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Latitude (°): ")
+                    ui.StringField(self._latitude_model, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Longitude (°): ")
+                    ui.StringField(self._longitude_model, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Altitude (km): ")
+                    ui.StringField(self._altitude_model, read_only=True)
+
+    def _build_electrical_components(self):
+        with ui.CollapsableFrame("Electrical Components", collapsed=True, name="group"):
+            with ui.VStack(height=0, spacing=5):
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Temperature (°C):")
+                    ui.StringField(self._temperature_model, read_only=True)
+
+    def _build_solar_panels(self):
+        with ui.CollapsableFrame("Solar Panels", collapsed=True, name="group"):
+            with ui.VStack(height=0, spacing=5):
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Temperature (°C):")
+                    ui.StringField(self._temperature_model, read_only=True)
 
     def satelliteComboClick(self, model):
         selected_item = model.get_value_as_string()
@@ -439,6 +484,22 @@ class SatelliteSelectionWindow(ui.Window):
             widths.append(width)
         widths_clamped = np.clip(widths, 1.0, 100.0)
         self._orbit_curve.GetWidthsAttr().Set(Vt.FloatArray(widths_clamped))
+
+    def update_info(self):
+        if self._selected_sat:
+            self._temperature_model.set_value(f"{self._selected_sat.actual_temperature:+5.3f}")
+
+            pos = self._selected_sat.pos
+            lat, lon, alt = utils.xyz_to_lla(pos[0], pos[1], pos[2])
+            self._altitude_model.set_value(alt)
+            self._longitude_model.set_value(lon)
+            self._latitude_model.set_value(lat)
+        # clear contents
+        else:
+            self._temperature_model.set_value("")
+            self._altitude_model.set_value("")
+            self._longitude_model.set_value("")
+            self._latitude_model.set_value("")
 
     async def _dock(self) -> None:
         '''Dock window in the viewport window.'''
