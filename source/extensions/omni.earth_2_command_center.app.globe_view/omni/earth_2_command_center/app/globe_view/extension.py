@@ -299,7 +299,7 @@ class WindowExtension(omni.ext.IExt):
         except ImportError:
             self._viewport_registry = None
 
-        self._screen_ui = GlobeUI(self._ext_id, self._window)
+        #self._screen_ui = GlobeUI(self._ext_id, self._window)
 
         renderer = omni.kit.renderer.bind.get_renderer_interface()
         self._render_subscription = renderer.get_pre_begin_frame_event_stream().create_subscription_to_pop(self._on_begin_frame)

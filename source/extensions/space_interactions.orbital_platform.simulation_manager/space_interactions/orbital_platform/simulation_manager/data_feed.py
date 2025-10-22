@@ -26,7 +26,8 @@ class DataFeed:
 
     def update(self) -> bool:
         if not self.external:
-            self.value += np.random.normal(0., self.std_dev)
+            #self.value += np.random.normal(0., self.std_dev)
+            self.value = np.random.normal(self.mu, self.std_dev)
 
         ok =  True
 

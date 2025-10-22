@@ -8,10 +8,13 @@
 # disclosure or distribution of this material and related documentation
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
+
 import os
 import asyncio
 import json
 import numpy as np
+# For testing
+np.random.seed(123)
 import time
 import math
 from datetime import datetime, timedelta
@@ -24,7 +27,7 @@ import omni.ext
 import omni.usd
 import omni.ui as ui
 from omni.ui import DockPreference, DockPosition
-from omni.kit.viewport.utility import get_active_viewport, get_active_viewport_window
+from omni.kit.viewport.utility import get_active_viewport, get_active_viewport_window, get_active_viewport_camera_path
 from omni.timeline import TimelineEventType
 from omni.kit.widget.searchable_combobox import build_searchable_combo_widget, ComboBoxListDelegate
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
@@ -33,13 +36,12 @@ import omni.kit.notification_manager as notify
 
 import omni.earth_2_command_center.app.core as earth2core
 import omni.earth_2_command_center.app.globe_view as globe
-import omni.earth_2_command_center.app.geo_utils as geo_utils
 
 import omni.kit.pipapi
-from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd, Tf
+from pxr import Sdf, UsdGeom, Gf, Usd
 from . import utils
 from .satellite import Satellite
-from .style import example_window_style
+from .screen_ui import ScreenUI
 from .data_feed import DataFeed
 
 omni.kit.pipapi.install("skyfield")
@@ -58,12 +60,16 @@ SAT_MODEL_PATHS = [
 ]
 DATA_FEED_TEMPLATES = [
     # name, expected value, standard deviation, low limit, high limit
-    ("electrical_temperature", 4.0, 0.05, 3.0, 5.0),
-    ("panel_temperature", 12.0, 0.05, 8.0, 16.0),
+    ("electrical_temperature", 4.0, 0.1, 3.0, 5.0),
+    ("panel_temperature", 12.0, 0.4, 8.0, 16.0),
     ("latitude", None, None, -90, 90),
     ("longitude", None, None, -180, 180),
     ("altitude", None, None, 200, 40E6),
 ]
+CAM_DEFAULTS = {
+        'xformOp:translate': Gf.Vec3d(14508.205314825205, 12510.310453034006, 5827.069287601547),
+        'xformOp:rotateXYZ': Gf.Vec3d(73.0817, -2.2263883e-14, 130.77094),
+}
 NULL_STRING_MODEL = ui.SimpleStringModel("")
 
 EMPTY_COMBO_VAL = "Search..."
@@ -132,10 +138,18 @@ class SimulationManager(omni.ext.IExt):
         self._load_satellites_json()
         self._initialize_satellites_geom()
 
-        self._satellite_selection_widget = SatelliteSelectionWindow(self.satellites, self._timescale)
+        self._screen_ui = None
+
+        #self._satellite_selection_widget = SatelliteSelectionWindow(self.satellites, self._timescale)
 
         self._scale_update_rate = 1/60
         self._last_scale_update = float()
+
+        #print("oonky")
+        #self._time_manager2 = SimulationUIController()
+        #self._time_manager2.startup("space_interactions.orbital_platform.simulation_manager.time_manager")
+        #print("boonky")
+
 
     def _load_satellites_json(self, path:str = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup.tle')):
         tles = json.load(open(path))
@@ -339,8 +353,8 @@ class SimulationManager(omni.ext.IExt):
             self.satScales = np.clip(out.numpy(), 2.0, 500.0)
 
             # if the user has a seleceted satellite
-            if get_sim_ui().selectedSatIdx != None:
-                get_sim_ui().set_orbit_scale(self.get_camera_position())
+            # if get_sim_ui().selectedSatIdx != None:
+            #     get_sim_ui().set_orbit_scale(self.get_camera_position())
 
             self.satellitesPrim.GetScalesAttr().Set(self.satScales)
 
@@ -354,212 +368,16 @@ class SimulationManager(omni.ext.IExt):
         if event.type == globe.extension.GLOBE_VIEW_SETUP:
             self.update_satellite_scales()
             earth2core.get_state().get_time_manager().get_timeline().play()
-            asyncio.ensure_future(get_sim_ui()._dock())
 
-class SatelliteSelectionWindow(ui.Window):
+            self._screen_ui = ScreenUI(self.satellites, self.scale, self._timescale)
+            #asyncio.ensure_future(get_sim_ui()._dock())
 
-    def __init__(self, satellites: list[Satellite], timescale: Timescale) -> None:
-        super().__init__("Satellite Selection", width=300, height=100)
+            end_pos = CAM_DEFAULTS["xformOp:translate"] * 4
+            camera_state = ViewportCameraState(get_active_viewport_camera_path())
+            camera_state.set_position_world(end_pos, True)
+            camera_state.set_target_world(Gf.Vec3d(0,0,0), True)
 
-        global _sim_ui
-        _sim_ui = self
 
-        self._satellites = satellites
-        self._selected_sat = None
-        self._stage = omni.usd.get_context().get_stage()
-        self.selectedSatIdx = None
-        self._timescale = timescale
-        self._orbit_curve_path = "/World/orbit/curve"
-        self._orbit_curve = None
-
-        self._fields: dict[str, ui.StringField] = {
-            "panel_temperature": None,
-            "electrical_temperature": None,
-            "latitude": None,
-            "longitude": None,
-            "altitude": None
-        }
-        self._satellite_search = None
-
-        self.frame.style = example_window_style
-        self.frame.set_build_fn(self._build_ui)
-
-    def _build_ui(self):
-
-        with ui.VStack():
-            self._build_satellite_combobox()
-            with ui.ScrollingFrame():
-                with ui.VStack(height=0):
-                    self._build_satellite_positions()
-                    self._build_electrical_components()
-                    self._build_solar_panels()
-
-    def _build_satellite_combobox(self):
-        # Define the list of items for the combo box
-        itemList = []
-        for sat in self._satellites:
-            item = f'{sat.id} {sat.name}'
-            itemList.append(item)
-
-        # Add the searchable combo box to the UI
-        # Create the searchable combo box with the specified items and callback
-        self._satellite_search = build_searchable_combo_widget(
-            combo_list=itemList,
-            combo_index=-1,  # Start with no item selected
-            combo_click_fn=self.satelliteComboClick,
-            widget_height=18,
-            default_value=EMPTY_COMBO_VAL,  # Placeholder text when no item is selected
-            window_id="SearchableComboBoxWindow",
-            delegate=ComboBoxListDelegate()  # Use the default delegate for item rendering
-        )
-
-    def _build_satellite_positions(self):
-        with ui.CollapsableFrame("Position", collapsed=True, name="group"):
-            with ui.VStack(height=0, spacing=5):
-                with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Latitude (°): ")
-                    self._fields["latitude"] = ui.StringField(None, read_only=True)
-                with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Longitude (°): ")
-                    self._fields["longitude"] = ui.StringField(None, read_only=True)
-                with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Altitude (km): ")
-                    self._fields["altitude"] = ui.StringField(None, read_only=True)
-
-    def _build_electrical_components(self):
-        with ui.CollapsableFrame("Electrical Components", collapsed=True, name="group"):
-            with ui.VStack(height=0, spacing=5):
-                with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Temperature (°C):")
-                    self._fields["electrical_temperature"] = ui.StringField(None, read_only=True)
-
-    def _build_solar_panels(self):
-        with ui.CollapsableFrame("Solar Panels", collapsed=True, name="group"):
-            with ui.VStack(height=0, spacing=5):
-                with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Temperature (°C):")
-                    self._fields["panel_temperature"] = ui.StringField(None, read_only=True)
-
-    def satelliteComboClick(self, model):
-        selected_item = model.get_value_as_string()
-
-        if selected_item == EMPTY_COMBO_VAL:
-            self.clearSelectedSatellite()
-
-        # Get norad cat id and set selectedSat
-        ssc = selected_item[0:5]
-        for i, sat in enumerate(self._satellites):
-            if sat.id == ssc:
-                self.select_satellite(sat, i)
-                break
-
-    def select_satellite(self, sat: Satellite, index: int) -> None:
-        self._selected_sat = sat
-        self._selected_sat.selected = True
-        self.selectedSatIdx = index
-
-        # Ensure search box reads correctly
-        self._satellite_search.set_text(f'{sat.id} {sat.name}')
-
-        # Update field models
-        for field_key in self._fields.keys():
-            if df := sat.get_data_feed(field_key):
-                self._fields[field_key].model = df.model
-            else:
-                print(field_key)
-
-        points = []
-        widths = []
-
-        now = self._timescale.from_datetime(earth2core.get_state().get_time_manager().current_utc_time)
-        # Get the orbital period in days
-        period_days = utils.get_satellite_period(sat).total_seconds() / (86400.0) # Period is in seconds
-        times = self._timescale.linspace(now, now + period_days, 360)
-        for t in times:
-            geocentric = sat.at(t)
-            pos = geocentric.frame_xyz(framelib.itrs)
-            # Pack to Gf.Vec3d and scale to our coordinate frame
-            pos = utils.to_vec3f(pos.km * get_sim_manager().scale)
-            points.append(pos)
-            widths.append(10.0)
-
-        self._orbit_curve = UsdGeom.NurbsCurves.Define(self._stage, self._orbit_curve_path)
-
-        # Set the points attribute
-        self._orbit_curve.CreatePointsAttr().Set(Vt.Vec3fArray(points))
-
-        # Set the widths
-        self._orbit_curve.CreateWidthsAttr(Vt.FloatArray(widths))
-
-        # Set the color
-        self._orbit_curve.CreateDisplayColorAttr(Vt.Vec3fArray(1, Gf.Vec3f(1.0, 1.0, 0.0)), writeSparsely=False)
-
-        # Set the curve vertex counts attribute
-        self._orbit_curve.CreateCurveVertexCountsAttr().Set([len(points)])
-
-        # Change geometry for selected satellite
-        indices = [0] * len(get_sim_manager().satellites)
-        indices[self.selectedSatIdx] = sat.proto_index
-        get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
-
-        # Get screen UI handle and interpolate camera to see selected satellite
-        screen_ui = globe.get_globe_view()._screen_ui
-
-        # Maneuver camera to sit back 10,000 units
-        distance = 10000.0
-        camera_state = ViewportCameraState(screen_ui.camera_path)
-        start_pos = camera_state.position_world
-        sat_pos = get_sim_manager().satPositions[index, :]
-        sat_unit_vector = sat_pos / np.linalg.norm(sat_pos)
-        end_pos = sat_pos + sat_unit_vector * distance
-        end_pos = Gf.Vec3d(float(end_pos[0]), float(end_pos[1]), float(end_pos[2]))
-
-        asyncio.ensure_future(screen_ui._interpolate_position(camera_state, start_pos, end_pos))
-
-    def clearSelectedSatellite(self) -> None:
-        self._selected_sat.selected = False # type: ignore
-        self._selected_sat = None
-        self.selectedSatIdx = None
-        self._stage.RemovePrim(self._orbit_curve_path)
-
-        # Change geometry for unselected satellite
-        indices = [0] * len(get_sim_manager().satellites)
-        get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
-
-        # Update field models
-        for field_key in self._fields.keys():
-            self._fields[field_key].model = NULL_STRING_MODEL
-
-    def set_orbit_scale(self, cam_pos) -> None:
-        pts = self._orbit_curve.GetPointsAttr().Get()
-        widths = []
-        for pt in pts:
-            width = (utils.distance(cam_pos, pt) * 0.0002)**2
-            widths.append(width)
-        widths_clamped = np.clip(widths, 1.0, 100.0)
-        self._orbit_curve.GetWidthsAttr().Set(Vt.FloatArray(widths_clamped))
-
-    async def _dock(self) -> None:
-        '''Dock window in the viewport window.'''
-
-        windowsToHide = [
-            "Content",
-            "Property",
-            "Render Settings"
-        ]
-
-        await omni.kit.app.get_app().next_update_async()
-        dock_space = ui.Workspace.get_window("DockSpace")
-
-        for window in ui.Workspace.get_windows():
-            if window.title in windowsToHide:
-                window.visible = False
-
-        # Dock viewport
-
-        # Dock select satellite
-        ui.Workspace.get_window("Globe View").dock_in(dock_space, ui.DockPosition.LEFT, 0.80)
-        self.dock_in(dock_space, ui.DockPosition.RIGHT, 0.20)
 
 @wp.kernel
 def sgp4kernel(pos: wp.array(dtype=wp.vec3), vel: wp.array(dtype=wp.vec3), s: float, out: wp.array(dtype=wp.vec3)): # type: ignore
