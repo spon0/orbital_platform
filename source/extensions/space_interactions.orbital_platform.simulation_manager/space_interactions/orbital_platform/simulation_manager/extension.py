@@ -45,7 +45,7 @@ from .screen_ui import ScreenUI
 from .data_feed import DataFeed
 
 omni.kit.pipapi.install("skyfield")
-from skyfield.api import load, Timescale
+from skyfield.api import load, Timescale, Time
 from skyfield import framelib
 
 SATTYPE_COLOR_MAPPING = {
@@ -103,10 +103,10 @@ class SimulationManager(omni.ext.IExt):
         self._set_settings()
 
         self._time_manager = earth2core.get_state().get_time_manager()
-        self._timestep_subscription = self._time_manager.get_utc_event_stream().create_subscription_to_pop_by_type(
-            event_type=earth2core.time_manager.UTC_CURRENT_TIME_CHANGED,
-            fn=self._on_timestep
-        )
+        # self._timestep_subscription = self._time_manager.get_utc_event_stream().create_subscription_to_pop_by_type(
+        #     event_type=earth2core.time_manager.UTC_CURRENT_TIME_CHANGED,
+        #     fn=self._on_timestep
+        # )
         self._camera_subscription = earth2core.get_state().get_globe_view_event_stream().create_subscription_to_pop_by_type(
             event_type=globe.gestures.CAMERA_POS_CHANGED,
             fn=self._on_camera_move
@@ -249,55 +249,57 @@ class SimulationManager(omni.ext.IExt):
         for sat in self.satellites:
             sat.update_idx = np.random.randint(self.timestepsPerUpdate) # type: ignore
 
-    def _on_timestep(self, event):
-        if event.type == earth2core.time_manager.UTC_CURRENT_TIME_CHANGED:
+    def _on_timestep(self, t: datetime):
 
-            utc_time = self._time_manager.current_utc_time
-            sim_time = self._timescale.from_datetime(utc_time)
+        utc_time = t
+        sim_time = self._timescale.from_datetime(utc_time)
 
-            if self._prev_time == None:
-                self._prev_time = utc_time
-            if self._curr_time == None:
-                self._curr_time = utc_time
-
-            self._prev_time = self._curr_time
+        if self._prev_time == None:
+            self._prev_time = utc_time
+        if self._curr_time == None:
             self._curr_time = utc_time
 
-            if len(self.satellites) > 0:
-                # Update any pos/vel/orientation for whose turn it is
-                for i, sat in enumerate(self.satellites):
-                    if self._frame_num % self.timestepsPerUpdate == sat.update_idx:
+        self._prev_time = self._curr_time
+        self._curr_time = utc_time
 
-                        pos, vel, ori = sat.get_state(sim_time)
-                        self.satPositions[i, :] = pos
-                        self.satVelocities[i, :] = vel
-                        self.satOrientations[i, :] = ori
+        if len(self.satellites) > 0:
+            # Update any pos/vel/orientation for whose turn it is
+            for i, sat in enumerate(self.satellites):
+                if self._frame_num % self.timestepsPerUpdate == sat.update_idx:
+
+                    pos, vel, ori = sat.get_state(sim_time)
+                    self.satPositions[i, :] = pos
+                    self.satVelocities[i, :] = vel
+                    self.satOrientations[i, :] = ori
 
 
-                        lat, lon, alt = utils.xyz_to_lla(sat.pos[0], sat.pos[1], sat.pos[2])
-                        sat.get_data_feed("latitude").set(lat)
-                        sat.get_data_feed("longitude").set(lon)
-                        sat.get_data_feed("altitude").set(alt)
-                        ok = sat.update_feeds()
+                    lat, lon, alt = utils.xyz_to_lla(sat.pos[0], sat.pos[1], sat.pos[2])
+                    sat.get_data_feed("latitude").set(lat)
+                    sat.get_data_feed("longitude").set(lon)
+                    sat.get_data_feed("altitude").set(alt)
+                    ok = sat.update_feeds()
 
-                        if not ok:
-                            n = notify.post_notification(
-                                text=f"{sat.name} has triggered an anomaly",
-                                duration=5,
-                                hide_after_timeout=False,
-                                status=notify.NotificationStatus.INFO,
-                                button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sim_ui().select_satellite, sat=sat, index=i))]
-                            )
+                    if not ok:
+                        n = notify.post_notification(
+                            text=f"{sat.name} has triggered an anomaly",
+                            duration=5,
+                            hide_after_timeout=False,
+                            status=notify.NotificationStatus.INFO,
+                            button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sim_ui().select_satellite, sat=sat, index=i))]
+                        )
 
-                            # sat.reset_feeds()
+                        # sat.reset_feeds()
 
-                # Move points to new positions
-                self.update_satellite_states()
+            # Move points to new positions
+            self.update_satellite_states()
 
-                # Update scales based on new positions
-                self.update_satellite_scales()
+            # Update scales based on new positions
+            self.update_satellite_scales()
 
-            self._frame_num += 1
+            # Update sun position
+            globe.get_globe_view()._sun_feature_motion.time_changed(utc_time)
+
+        self._frame_num += 1
 
     def get_camera_position(self) -> wp.vec3:
         viewport_api = get_active_viewport()
@@ -316,8 +318,7 @@ class SimulationManager(omni.ext.IExt):
         print("[space_interactions.orbital_platform.simulation_manager] Extension shutdown")
 
     def _on_camera_move(self, event):
-        if event.type == globe.gestures.CAMERA_POS_CHANGED:
-            self.update_satellite_scales()
+        self.update_satellite_scales()
 
     def update_satellite_states(self):
         '''Update UsdGeom.PointsInstancer point positions'''

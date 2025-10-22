@@ -55,14 +55,15 @@ clock_box = {
 }
 
 timeline_frame = {
-    "Button": {"background_color": 0x0, "padding": 0},
-    "Button:checked": {"background_color": 0x0},
-    "Button:hovered": {"background_color": 0x0},
-    "Button:pressed": {"background_color": 0x0},
-    "Button.Image": {"background_color": 0x0, "color": _MID },
+    "Button": {"background_color": 0x0, "padding": 1},
+    #"Button:checked": {"background_color": 0x0},
+    #"Button:unchecked": {"background_color": 0x0},
+    #"Button:hovered": {"background_color": 0x0},
+    #"Button:pressed": {"background_color": 0x0},
+    "Button.Image": {"background_color": 0x0, "color": _LIGHT },
     "Button.Image:hovered": {"color": _BLUE_A},
-    "Button.Image:checked": {"color": _LIGHT},
-    "Button.Image:pressed": {"color": _BLUE_A},
+    #"Button.Image:checked": {"color": _LIGHT},
+    "Button.Image:pressed": {"color": _DARK},
 }
 
 

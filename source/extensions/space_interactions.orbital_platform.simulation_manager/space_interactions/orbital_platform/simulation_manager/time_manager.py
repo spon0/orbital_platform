@@ -17,12 +17,11 @@ import omni.kit.pipapi
 from .style import _PAUSE, _PLAY, PLAYBACK_PANEL, clock_box, _CLOCK_FONT, _CLOCK_FONT_SIZE, timeline_frame
 
 omni.kit.pipapi.install("skyfield")
-from skyfield.api import load, Timescale
-from skyfield import framelib
+from skyfield.api import load, Time
 
-def get_controller():
-    global _controller
-    return _controller
+def get_time_controller():
+    global _time_controller
+    return _time_controller
 
 
 class TimeControlFrame(ui.Frame):
@@ -40,8 +39,7 @@ class TimeControlFrame(ui.Frame):
         self.hour_model = ui.SimpleIntModel(now.hour)
         self.minute_model = ui.SimpleIntModel(now.minute)
         self.second_model = ui.SimpleIntModel(now.second)
-        self.time_scale_model = ui.SimpleFloatModel(1.0)
-        self.current_time_str_model = ui.SimpleStringModel("Initializing...")
+        self.time_scale_model = ui.SimpleFloatModel(SimulationTimeController.DEFAULT_SPEED)
 
         self._window: Optional[ui.Window] = get_active_viewport_window()
         self._margin = 20
@@ -56,12 +54,13 @@ class TimeControlFrame(ui.Frame):
         self.set_build_fn(self._build_fn)
 
     def _build_fn(self):
-        w, h = 250, 100
-        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h):
+        w, h = 250, 150
+        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h - 50):
                 with ui.ZStack(width=w, height=h, content_clipping=1, opaque_for_mouse_events=True):
                     ui.Rectangle(width=ui.Percent(100), height=ui.Percent(100))
-                    with ui.VStack(spacing=8, style=timeline_frame):
-                        # --- SHOW DATE AND TIME ---
+                    with ui.VStack(spacing=0, style=timeline_frame):
+
+                        # --- SECTION FOR SIMULATION CONTROL ---
                         with ui.HStack(height=30, spacing=6):
                             # play/pause button
                             btn = ui.Button(
@@ -81,83 +80,31 @@ class TimeControlFrame(ui.Frame):
 
                             ui.Label("Time:")
                             build_clock_box(self.hour_model)
-                            ui.Label(":")
+                            ui.Label(":", style=clock_box)
                             build_clock_box(self.minute_model)
-                            ui.Label(":")
+                            ui.Label(":", style=clock_box)
                             build_clock_box(self.second_model)
 
-                        ui.Line(width=ui.Percent(80), alignment= ui.Alignment.CENTER)
-
-                        # --- SECTION FOR SIMULATION CONTROL ---
-                        with ui.HStack(height=30, spacing=2):
+                        with ui.HStack(height=30, spacing=6):
 
                             ui.Label("Speed:")
                             # A slider for more intuitive speed control
                             ui.FloatSlider(self.time_scale_model, min=0.1, max=100, step=0.1,
                                             format="%.1f x")
-
-                        # with ui.HStack():
-                        #     ui.Label("Speed:")
-                        #     # A slider for more intuitive speed control
-                        #     ui.FloatSlider(self.time_scale_model, min=0.1, max=100, step=0.1,
-                        #                     format="%.0f x")
-                        #     # When the slider value changes, update the controller
-                        #     self.time_scale_model.add_value_changed_fn(
-                        #         lambda m: self.time_controller.set_time_scale(m.get_value_as_float())
-                        #     )
-
-
-                    # with ui.VStack(spacing=8, width=w, height=h, content_clipping=1):
-                    #     # --- SECTION FOR SETTING DATE AND TIME ---
-                    #     with ui.CollapsableFrame("Set Date & Time (UTC)", collapsed=True):
-                    #         with ui.VStack(spacing=5, style={"margin": 5}):
-                    #             with ui.HStack():
-                    #                 ui.Label("Date (Y/M/D):", width=100)
-                    #                 ui.IntField(self.year_model)
-                    #                 ui.IntField(self.month_model)
-                    #                 ui.IntField(self.day_model)
-                    #             with ui.HStack():
-                    #                 ui.Label("Time (H:M):", width=100)
-                    #                 ui.IntField(self.hour_model)
-                    #                 ui.IntField(self.minute_model)
-                    #             ui.Button("Apply Date and Time", clicked_fn=self._on_set_time_click)
-
-                    #     # --- SECTION FOR SIMULATION CONTROL ---
-                    #     with ui.CollapsableFrame("Playback Control", collapsed=True):
-                    #         with ui.VStack(spacing=5, style={"margin": 5}):
-                    #             with ui.HStack(spacing=10):
-                    #                 ui.Button("▶ Play", clicked_fn=self.time_controller.play)
-                    #                 ui.Button("❚❚ Pause", clicked_fn=self.time_controller.pause)
-
-                    #             ui.Label("Time Scale (Speed):")
-                    #             # A slider for more intuitive speed control
-                    #             ui.FloatSlider(self.time_scale_model, min=0, max=10000, step=10,
-                    #                             format="%.0f x")
-                    #             # When the slider value changes, update the controller
-                    #             self.time_scale_model.add_value_changed_fn(
-                    #                 lambda m: self.time_controller.set_time_scale(m.get_value_as_float())
-                    #             )
-
-                    #     # --- SECTION FOR DISPLAYING CURRENT TIME ---
-                    #     ui.Spacer(height=10)
-                    #     ui.Label("Current Simulation Time:", style={"font_size": 16})
-                    #     # This label will be updated every frame
-                    #     ui.StringField(model=self.current_time_str_model, style={"color": 0xFF00DDFF})
-                    #     #ui.Label(model=self.current_time_str_model, style={"color": 0xFF00DDFF})
+                            self.time_scale_model.add_value_changed_fn(
+                                lambda m: self.time_controller.set_time_scale(m.get_value_as_float())
+                            )
 
     def _on_play_pause_click(self, btn: ui.Button):
         # Make this a toggle checkbox
         btn.checked = not btn.checked
 
         if btn.checked:
-            print("Checked")
             btn.image_url = _PAUSE
             self.time_controller.play()
         else:
-            print("Unchecked")
             btn.image_url = _PLAY
             self.time_controller.pause()
-
 
     def _on_set_time_click(self):
         """Called when the 'Apply Date and Time' button is clicked."""
@@ -177,21 +124,15 @@ class TimeControlFrame(ui.Frame):
         self.time_controller.update(delta_time)
 
         # 2. Get the new current time from the controller
-        current_skyfield_time = self.time_controller.get_current_time()
+        current_dt = self.time_controller.get_current_datetime()
 
-        # 3. Update the UI label to show the new time
-        self.current_time_str_model.set_value(current_skyfield_time.utc_iso())
-
-        # 4. !!! YOUR LOGIC GOES HERE !!!
-        #    Use `current_skyfield_time` to calculate the position of ALL your objects.
-        #    For each satellite prim in your scene:
-        #
-        #    satellite_prim = stage.GetPrimAtPath("/World/Satellites/MySatellite")
-        #    geocentric = skyfield_satellite_object.at(current_skyfield_time)
-        #    new_position = geocentric.position.km * scene_scale_factor
-        #    omni.kit.commands.execute('TransformPrim',
-        #        path=satellite_prim.GetPath(),
-        #        new_transform_matrix=Gf.Matrix4d().SetTranslate(new_position))
+        # 3. Update current time models
+        self.year_model.set_value(current_dt.year)
+        self.month_model.set_value(current_dt.month)
+        self.day_model.set_value(current_dt.day)
+        self.hour_model.set_value(current_dt.hour)
+        self.minute_model.set_value(current_dt.minute)
+        self.second_model.set_value(current_dt.second)
 
     def on_shutdown(self):
         # Clean up resources
@@ -204,12 +145,18 @@ class SimulationTimeController:
     """
     Manages the state of the simulation time, including date, speed, and play/pause.
     """
+
+    DEFAULT_SPEED = 10.0
+
     def __init__(self):
         """Initializes the time controller."""
         self.ts = load.timescale()
         self._is_running = True  # Start the simulation in a 'playing' state
-        self._time_scale = 1.0   # 1.0 means real-time. > 1.0 is fast-forward.
+        self._time_scale = SimulationTimeController.DEFAULT_SPEED   # 1.0 means real-time. > 1.0 is fast-forward.
         self._current_sim_time = self.ts.now() # The current time of the simulation
+
+        global _time_controller
+        _time_controller = self
 
     def update(self, delta_time: float):
         """
@@ -218,6 +165,7 @@ class SimulationTimeController:
         Args:
             delta_time (float): The real-world time in seconds that has passed since the last frame.
         """
+
         if not self._is_running:
             return
 
@@ -228,6 +176,10 @@ class SimulationTimeController:
 
         # Advance the current simulation time
         self._current_sim_time = self.ts.tt_jd(self._current_sim_time.tt + simulation_days_passed)
+
+        from .extension import get_sim_manager
+        dt = self.get_current_datetime()
+        get_sim_manager()._on_timestep(dt)
 
     def set_time(self, year: int, month: int, day: int, hour: int = 12, minute: int = 0, second: int = 0):
         """
@@ -256,6 +208,10 @@ class SimulationTimeController:
         """
         self._time_scale = max(0, scale) # Prevent negative time scales
 
-    def get_current_time(self):
+    def get_current_time(self) -> Time:
         """Returns the current Skyfield time object for the simulation."""
         return self._current_sim_time
+
+    def get_current_datetime(self) -> datetime:
+        """Returns the current python DateTime object for the simulation in UTC."""
+        return self._current_sim_time.utc_datetime()

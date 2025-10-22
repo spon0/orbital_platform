@@ -81,7 +81,7 @@ class SatelliteSelectionFrame(ui.Frame):
         )
 
     def _build_satellite_positions(self):
-        with ui.CollapsableFrame("Position", collapsed=True, name="group"):
+        with ui.CollapsableFrame("Position", collapsed=False, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Latitude (°): ")
@@ -94,14 +94,14 @@ class SatelliteSelectionFrame(ui.Frame):
                     self._fields["altitude"] = ui.StringField(None, read_only=True)
 
     def _build_electrical_components(self):
-        with ui.CollapsableFrame("Electrical Components", collapsed=True, name="group"):
+        with ui.CollapsableFrame("Electrical Components", collapsed=False, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
                     self._fields["electrical_temperature"] = ui.StringField(None, read_only=True)
 
     def _build_solar_panels(self):
-        with ui.CollapsableFrame("Solar Panels", collapsed=True, name="group"):
+        with ui.CollapsableFrame("Solar Panels", collapsed=False, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
@@ -123,6 +123,8 @@ class SatelliteSelectionFrame(ui.Frame):
     def select_satellite(self, sat: Satellite, index: int) -> None:
         from .extension import get_sim_manager
         from .screen_ui import get_screen_ui
+        from .time_manager import get_time_controller
+
         self._selected_sat = sat
         self._selected_sat.selected = True
         self.selectedSatIdx = index
@@ -140,7 +142,7 @@ class SatelliteSelectionFrame(ui.Frame):
         points = []
         widths = []
 
-        now = self._timescale.from_datetime(earth2core.get_state().get_time_manager().current_utc_time)
+        now = get_time_controller().get_current_time()
         # Get the orbital period in days
         period_days = utils.get_satellite_period(sat).total_seconds() / (86400.0) # Period is in seconds
         times = self._timescale.linspace(now, now + period_days, 360)
