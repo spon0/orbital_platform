@@ -297,7 +297,8 @@ class SimulationManager(omni.ext.IExt):
             self.update_satellite_scales()
 
             # Update sun position
-            globe.get_globe_view()._sun_feature_motion.time_changed(utc_time)
+            globe.get_globe_view()._sun_feature_motion.force_update(utc_time)
+            #print(globe.get_globe_view()._sun_feature.latitude, globe.get_globe_view()._sun_feature.longitude)
 
         self._frame_num += 1
 

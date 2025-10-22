@@ -89,7 +89,8 @@ class TimeControlFrame(ui.Frame):
 
                             ui.Label("Speed:")
                             # A slider for more intuitive speed control
-                            ui.FloatSlider(self.time_scale_model, min=0.1, max=100, step=0.1,
+                            ui.FloatSlider(self.time_scale_model, min=SimulationTimeController.MIN_SPEED,
+                                           max=SimulationTimeController.MAX_SPEED, step=0.1,
                                             format="%.1f x")
                             self.time_scale_model.add_value_changed_fn(
                                 lambda m: self.time_controller.set_time_scale(m.get_value_as_float())
@@ -147,6 +148,8 @@ class SimulationTimeController:
     """
 
     DEFAULT_SPEED = 10.0
+    MIN_SPEED = 0.1
+    MAX_SPEED = 100.0
 
     def __init__(self):
         """Initializes the time controller."""

@@ -155,7 +155,8 @@ class SetupExtension(omni.ext.IExt):
         # need to call this to ensure the stage's time codes are initialized correctly.
         # TODO: there must be some event that we can listen to in core.TimeManager instead
         # to sync the stage automatically when its created.
-        get_state().get_time_manager().sync_stage()
+        if get_state().get_time_manager():
+            get_state().get_time_manager().sync_stage()
 
         # ===============================================================================
         # OM-98588: These two settings do not co-operate well on ADA cards, so for
