@@ -14,7 +14,7 @@ import carb.settings
 def set_render_settings():
     settings = carb.settings.get_settings()
     settings.set_int("/persistent/app/viewport/displayOptions", 0)
-    
+
     settings.set_string("/rtx/rendermode", "rtx") #"PathTracing"
     # for atmosphere
     settings.set_int("/rtx/translucency/maxRefractionBounces", 3)
@@ -28,24 +28,24 @@ def set_render_settings():
     settings.set_int("/rtx-transient/dlssg/enabled", False)
     # sometimes accumulation looks very blurry, we prefer flickering over blurring
     #settings.set_int("/rtx/lightspeed/render/enableAccumulation", False)
-    
+
     # to avoid artifacts on the Globe
     settings.set_bool("/rtx/indirectDiffuse/enabled", False)
     settings.set_bool("/rtx/ambientOcclusion/enabled", False)
-    
+
     settings.set_int("/rtx/pathtracing/spp", 1)
     settings.set_int("/rtx/pathtracing/totalSpp", 512)
-    
+
     # caching seems to cause artifacts
     settings.set_bool("/rtx/pathtracing/cached.enabled", False)
     settings.set_bool("/rtx/resetPtAccumOnAnimTimeChange", True)
-    
+
     # add film grain to help avoid banding artifacts from stream compression
     #settings.set_bool("/rtx/post/tvNoise/enabled", True)
     #settings.set_bool("/rtx/post/tvNoise/enableFilmGrain", True)
     #settings.set_float("/rtx/post/tvNoise/grainAmount", 0.01)
-    
+
     # add motion blur
-    settings.set_bool("/rtx/post/motionblur/enabled", True)
-    settings.set_float("/rtx/post/motionblur/maxBlurDiameterFraction", 0.005)
-    settings.set_int("/rtx/post/motionblur/numSamples", 16)
+    #settings.set_bool("/rtx/post/motionblur/enabled", True)
+    #settings.set_float("/rtx/post/motionblur/maxBlurDiameterFraction", 0.005)
+    #settings.set_int("/rtx/post/motionblur/numSamples", 16)

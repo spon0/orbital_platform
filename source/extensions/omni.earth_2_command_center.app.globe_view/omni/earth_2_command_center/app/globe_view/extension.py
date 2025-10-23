@@ -88,8 +88,9 @@ class WindowExtension(omni.ext.IExt):
         self._feature_subscription = self._features_api.get_event_stream().create_subscription_to_push(self._on_feature_change)
 
         # create timeline subscription
-        event_stream = self._time_manager.get_timeline_event_stream()
-        self._timeline_subscription = event_stream.create_subscription_to_pop(self._on_time)
+        if self._time_manager:
+            event_stream = self._time_manager.get_timeline_event_stream()
+            self._timeline_subscription = event_stream.create_subscription_to_pop(self._on_time)
 
         # 'soft' dependency to FeatureProperties Window
         # we add hooks that get called when the extension gets loaded/unloaded
@@ -299,7 +300,7 @@ class WindowExtension(omni.ext.IExt):
         except ImportError:
             self._viewport_registry = None
 
-        self._screen_ui = GlobeUI(self._ext_id, self._window)
+        #self._screen_ui = GlobeUI(self._ext_id, self._window)
 
         renderer = omni.kit.renderer.bind.get_renderer_interface()
         self._render_subscription = renderer.get_pre_begin_frame_event_stream().create_subscription_to_pop(self._on_begin_frame)
@@ -351,7 +352,7 @@ class WindowExtension(omni.ext.IExt):
             return
 
         if sun_dirty:
-            self._sun_feature_motion.update(self._time_manager.current_utc_time)
+            #self._sun_feature_motion.update(self._time_manager.current_utc_time)
             phi = self._sun_feature.longitude
             theta = 90 - self._sun_feature.latitude
 
