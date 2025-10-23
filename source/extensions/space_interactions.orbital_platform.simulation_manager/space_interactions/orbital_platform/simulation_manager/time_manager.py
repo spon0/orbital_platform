@@ -14,7 +14,7 @@ import omni.earth_2_command_center.app.core as earth2core
 
 import omni.kit.pipapi
 
-from .style import _PAUSE, _PLAY, PLAYBACK_PANEL, clock_box, _CLOCK_FONT, _CLOCK_FONT_SIZE, timeline_frame
+from .style import _PAUSE, _PLAY, PLAYBACK_PANEL, clock_box, clock_label, timeline_frame
 
 omni.kit.pipapi.install("skyfield")
 from skyfield.api import load, Time
@@ -52,39 +52,54 @@ class TimeControlFrame(ui.Frame):
                 self._on_update
             )
 
+        self._datetime_fields: list[ui.IntField] = []
+
         self.set_build_fn(self._build_fn)
 
     def _build_fn(self):
         w, h = 400, 100
-        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h - 50):
+        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h - 25):
                 with ui.ZStack(width=w, height=h, content_clipping=1, opaque_for_mouse_events=True):
                     ui.Rectangle(width=ui.Percent(100), height=ui.Percent(100))
                     with ui.VStack(spacing=0, style=timeline_frame):
 
                         # --- SECTION FOR SIMULATION CONTROL ---
-                        with ui.HStack(height=30, spacing=3):
+                        with ui.HStack(height=30, spacing=1):
                             # play/pause button
                             btn = ui.Button(
                                 "",
                                 tooltip='Play/Pause Simulation',
                                 width=0,
                                 height=0,
-                                image_width=30,
-                                image_height=30,
+                                image_width=25,
+                                image_height=25,
                                 checked = True,
                                 image_url = _PAUSE
                             )
                             btn.set_clicked_fn(lambda b=btn: self._on_play_pause_click(b))
 
-                            def build_clock_box(model):
+                            def build_year_box(model):
+                                o = ui.IntField(model, enabled=False, width=60, style=clock_box)
+                                self._datetime_fields.append(o)
+                            def build_date_box(model):
                                 o = ui.IntField(model, enabled=False, width=40, style=clock_box)
+                                self._datetime_fields.append(o)
+                            def build_time_box(model):
+                                o = ui.IntField(model, enabled=False, width=40, style=clock_box)
+                                self._datetime_fields.append(o)
 
                             ui.Label("Time:")
-                            build_clock_box(self.hour_model)
-                            ui.Label(":", style=clock_box)
-                            build_clock_box(self.minute_model)
-                            ui.Label(":", style=clock_box)
-                            build_clock_box(self.second_model)
+                            build_date_box(self.month_model)
+                            ui.Label("/", style=clock_label, width=5)
+                            build_date_box(self.day_model)
+                            ui.Label("/", style=clock_label, width=5)
+                            build_year_box(self.year_model)
+                            ui.Spacer(width=10)
+                            build_time_box(self.hour_model)
+                            ui.Label(":", style=clock_label, width=5)
+                            build_time_box(self.minute_model)
+                            ui.Label(":", style=clock_label, width=5)
+                            build_time_box(self.second_model)
 
                         ui.Spacer()
                         with ui.HStack(height=30, spacing=3):
@@ -104,9 +119,24 @@ class TimeControlFrame(ui.Frame):
 
         if btn.checked:
             btn.image_url = _PAUSE
+            # Make fields uneditable
+            for dt_field in self._datetime_fields:
+                dt_field.enabled = False
+
+            self.time_controller.set_time(
+                self.year_model.get_value_as_int(),
+                self.month_model.get_value_as_int(),
+                self.day_model.get_value_as_int(),
+                self.hour_model.get_value_as_int(),
+                self.minute_model.get_value_as_int(),
+            )
+
             self.time_controller.play()
         else:
             btn.image_url = _PLAY
+            # Make fields editable
+            for dt_field in self._datetime_fields:
+                dt_field.enabled = True
             self.time_controller.pause()
 
     def _on_set_time_click(self):
@@ -131,13 +161,14 @@ class TimeControlFrame(ui.Frame):
         # 2. Get the new current time from the controller
         current_dt = self.time_controller.get_current_datetime()
 
-        # 3. Update current time models
-        self.year_model.set_value(current_dt.year)
-        self.month_model.set_value(current_dt.month)
-        self.day_model.set_value(current_dt.day)
-        self.hour_model.set_value(current_dt.hour)
-        self.minute_model.set_value(current_dt.minute)
-        self.second_model.set_value(current_dt.second)
+        if self.time_controller._is_running:
+            # 3. Update current time models
+            self.year_model.set_value(current_dt.year)
+            self.month_model.set_value(current_dt.month)
+            self.day_model.set_value(current_dt.day)
+            self.hour_model.set_value(current_dt.hour)
+            self.minute_model.set_value(current_dt.minute)
+            self.second_model.set_value(current_dt.second)
 
 
 class SimulationTimeController:

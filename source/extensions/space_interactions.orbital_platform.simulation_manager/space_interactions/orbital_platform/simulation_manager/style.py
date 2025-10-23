@@ -47,11 +47,14 @@ fl.example_window_group_spacing = 2
 # FONT
 ############################################
 _CLOCK_FONT = f"{EXT_TOKEN}/data/fonts/digital-7.regular.ttf"
-_CLOCK_FONT_SIZE = 12
-
+_FONT = f"{EXT_TOKEN}/data/fonts/OpenSans-SemiBold.ttf"
 clock_box = {
     "font": _CLOCK_FONT,
-    "font_size": _CLOCK_FONT_SIZE,
+    "font_size": 12,
+}
+clock_label = {
+    "font": _FONT,
+    "font_size": 16,
 }
 
 timeline_frame = {
