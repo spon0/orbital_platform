@@ -25,7 +25,6 @@ class ScreenUI:
 
     def __init__(self, satellites: list[Satellite], coord_scale: float, timescale: Timescale):
 
-        #viewport, self._window = omni.kit.viewport.utility.get_active_viewport_and_window()
         self._window: Optional[ui.Window] = get_active_viewport_window()
 
         self.__visible = True
@@ -43,8 +42,8 @@ class ScreenUI:
         self.__zoom_min = 5_000
         self.__zoom_max = 120_000
 
-        self._satellite_selection_frame = None
-        self._timeline_frame = None
+        self._satellite_selection_frame: Optional[SatelliteSelectionFrame] = None
+        self._timeline_frame: Optional[TimeControlFrame] = None
         self._coord_scale = coord_scale
         self._satellites = satellites
         self._timescale = timescale

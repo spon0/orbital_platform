@@ -140,16 +140,8 @@ class SimulationManager(omni.ext.IExt):
 
         self._screen_ui = None
 
-        #self._satellite_selection_widget = SatelliteSelectionWindow(self.satellites, self._timescale)
-
         self._scale_update_rate = 1/60
         self._last_scale_update = float()
-
-        #print("oonky")
-        #self._time_manager2 = SimulationUIController()
-        #self._time_manager2.startup("space_interactions.orbital_platform.simulation_manager.time_manager")
-        #print("boonky")
-
 
     def _load_satellites_json(self, path:str = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup.tle')):
         tles = json.load(open(path))
@@ -272,7 +264,6 @@ class SimulationManager(omni.ext.IExt):
                     self.satVelocities[i, :] = vel
                     self.satOrientations[i, :] = ori
 
-
                     lat, lon, alt = utils.xyz_to_lla(sat.pos[0], sat.pos[1], sat.pos[2])
                     sat.get_data_feed("latitude").set(lat)
                     sat.get_data_feed("longitude").set(lon)
@@ -298,7 +289,6 @@ class SimulationManager(omni.ext.IExt):
 
             # Update sun position
             globe.get_globe_view()._sun_feature_motion.force_update(utc_time)
-            #print(globe.get_globe_view()._sun_feature.latitude, globe.get_globe_view()._sun_feature.longitude)
 
         self._frame_num += 1
 
@@ -352,13 +342,14 @@ class SimulationManager(omni.ext.IExt):
             out = wp.empty(shape=n, dtype=wp.vec3, device="cuda")
             pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
             wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, out], device="cuda")
-            self.satScales = np.clip(out.numpy(), 2.0, 500.0)
-
-            # if the user has a seleceted satellite
-            # if get_sim_ui().selectedSatIdx != None:
-            #     get_sim_ui().set_orbit_scale(self.get_camera_position())
+            self.satScales = np.clip(out.numpy(), 3.0, 300.0)
 
             self.satellitesPrim.GetScalesAttr().Set(self.satScales)
+
+            # if the user has a seleceted satellite
+            if screen := self._screen_ui:
+                if screen._satellite_selection_frame.selected_sat_idx:
+                    screen._satellite_selection_frame.set_orbit_scale(self.get_camera_position())
 
             self._last_scale_update = t
 

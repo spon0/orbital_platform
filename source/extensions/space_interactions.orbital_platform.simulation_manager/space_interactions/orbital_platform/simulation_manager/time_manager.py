@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
+import time
 from pytz import UTC
 
 import omni.ext
@@ -46,6 +46,7 @@ class TimeControlFrame(ui.Frame):
 
         self._timeline = omni.timeline.get_timeline_interface()
         timeline_event_stream = self._timeline.get_timeline_event_stream()
+        self._prev_time = time.time()
         self._subscription = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(TimelineEventType.CURRENT_TIME_TICKED),
                 self._on_update
@@ -54,14 +55,14 @@ class TimeControlFrame(ui.Frame):
         self.set_build_fn(self._build_fn)
 
     def _build_fn(self):
-        w, h = 250, 150
+        w, h = 400, 100
         with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h - 50):
                 with ui.ZStack(width=w, height=h, content_clipping=1, opaque_for_mouse_events=True):
                     ui.Rectangle(width=ui.Percent(100), height=ui.Percent(100))
                     with ui.VStack(spacing=0, style=timeline_frame):
 
                         # --- SECTION FOR SIMULATION CONTROL ---
-                        with ui.HStack(height=30, spacing=6):
+                        with ui.HStack(height=30, spacing=3):
                             # play/pause button
                             btn = ui.Button(
                                 "",
@@ -85,13 +86,14 @@ class TimeControlFrame(ui.Frame):
                             ui.Label(":", style=clock_box)
                             build_clock_box(self.second_model)
 
-                        with ui.HStack(height=30, spacing=6):
+                        ui.Spacer()
+                        with ui.HStack(height=30, spacing=3):
 
                             ui.Label("Speed:")
                             # A slider for more intuitive speed control
                             ui.FloatSlider(self.time_scale_model, min=SimulationTimeController.MIN_SPEED,
                                            max=SimulationTimeController.MAX_SPEED, step=0.1,
-                                            format="%.1f x")
+                                            format="%.1f x", width=ui.Percent(80))
                             self.time_scale_model.add_value_changed_fn(
                                 lambda m: self.time_controller.set_time_scale(m.get_value_as_float())
                             )
@@ -119,7 +121,9 @@ class TimeControlFrame(ui.Frame):
 
     def _on_update(self, e: carb.events.IEvent):
         """This function is called every single frame."""
-        delta_time = e.payload["dt"]
+        t = time.time()
+        delta_time = t - self._prev_time
+        self._prev_time = t
 
         # 1. Advance the time in our controller
         self.time_controller.update(delta_time)
@@ -135,12 +139,6 @@ class TimeControlFrame(ui.Frame):
         self.minute_model.set_value(current_dt.minute)
         self.second_model.set_value(current_dt.second)
 
-    def on_shutdown(self):
-        # Clean up resources
-        self._update_sub = None
-        self._window = None
-        self.time_controller = None
-
 
 class SimulationTimeController:
     """
@@ -149,7 +147,7 @@ class SimulationTimeController:
 
     DEFAULT_SPEED = 10.0
     MIN_SPEED = 0.1
-    MAX_SPEED = 100.0
+    MAX_SPEED = 50.0
 
     def __init__(self):
         """Initializes the time controller."""

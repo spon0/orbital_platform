@@ -30,7 +30,7 @@ class SatelliteSelectionFrame(ui.Frame):
         self._satellites = satellites
         self._selected_sat = None
         self._stage = omni.usd.get_context().get_stage()
-        self.selectedSatIdx = None
+        self.selected_sat_idx = None
         self._timescale = timescale
         self._coord_scale = coord_scale
         self._orbit_curve_path = "/World/orbit/curve"
@@ -127,7 +127,7 @@ class SatelliteSelectionFrame(ui.Frame):
 
         self._selected_sat = sat
         self._selected_sat.selected = True
-        self.selectedSatIdx = index
+        self.selected_sat_idx = index
 
         # Ensure search box reads correctly
         self._satellite_search.set_text(f'{sat.id} {sat.name}')
@@ -170,7 +170,7 @@ class SatelliteSelectionFrame(ui.Frame):
 
         # Change geometry for selected satellite
         indices = [0] * len(self._satellites)
-        indices[self.selectedSatIdx] = sat.proto_index
+        indices[self.selected_sat_idx] = sat.proto_index
         get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
 
         # Maneuver camera to sit back 10,000 units
@@ -190,7 +190,7 @@ class SatelliteSelectionFrame(ui.Frame):
         from .extension import get_sim_manager
         self._selected_sat.selected = False # type: ignore
         self._selected_sat = None
-        self.selectedSatIdx = None
+        self.selected_sat_idx = None
         self._stage.RemovePrim(self._orbit_curve_path)
 
         # Change geometry for unselected satellite

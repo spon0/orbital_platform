@@ -47,7 +47,7 @@ fl.example_window_group_spacing = 2
 # FONT
 ############################################
 _CLOCK_FONT = f"{EXT_TOKEN}/data/fonts/digital-7.regular.ttf"
-_CLOCK_FONT_SIZE = 18
+_CLOCK_FONT_SIZE = 12
 
 clock_box = {
     "font": _CLOCK_FONT,
@@ -55,7 +55,7 @@ clock_box = {
 }
 
 timeline_frame = {
-    "Button": {"background_color": 0x0, "padding": 1},
+    "Button": {"background_color": 0x0 },
     #"Button:checked": {"background_color": 0x0},
     #"Button:unchecked": {"background_color": 0x0},
     #"Button:hovered": {"background_color": 0x0},
@@ -66,33 +66,8 @@ timeline_frame = {
     "Button.Image:pressed": {"color": _DARK},
 }
 
-
-example_window_style = {
-    "Label::attribute_name": {
-        "alignment": ui.Alignment.RIGHT_CENTER,
-        "margin_height": fl.example_window_attr_spacing,
-        "margin_width": fl.example_window_attr_hspacing,
-    },
-    "Label::attribute_name:hovered": {"color": cl.example_window_hovered},
-    "Label::collapsable_name": {"alignment": ui.Alignment.LEFT_CENTER},
-    "Slider::attribute_int:hovered": {"color": cl.example_window_hovered},
-    "Slider": {
-        "background_color": cl.example_window_attribute_bg,
-        "draw_mode": ui.SliderDrawMode.HANDLE,
-    },
-    "Slider::attribute_float": {
-        "draw_mode": ui.SliderDrawMode.FILLED,
-        "secondary_color": cl.example_window_attribute_fg,
-    },
-    "Slider::attribute_float:hovered": {"color": cl.example_window_hovered},
-    "Slider::attribute_vector:hovered": {"color": cl.example_window_hovered},
-    "Slider::attribute_color:hovered": {"color": cl.example_window_hovered},
-    "CollapsableFrame::group": {"margin_height": fl.example_window_group_spacing},
-    # "Image::collapsable_opened": {"color": cl.example_window_text, "image_url": url.example_window_icon_opened},
-    # "Image::collapsable_closed": {"color": cl.example_window_text, "image_url": url.example_window_icon_closed},
-}
-
 PLAYBACK_PANEL = {
+    "margin": 3,
     "Rectangle": {"background_color": _DARK_A, "border_radius": 3},
     "Button": { "background_color": 0x0, "margin_height": 0.5, "margin_width": 0.5},
     "Button:hovered": {"background_color": 0x0},
