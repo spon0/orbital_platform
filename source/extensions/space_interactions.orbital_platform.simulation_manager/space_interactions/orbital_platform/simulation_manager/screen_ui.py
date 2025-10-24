@@ -81,6 +81,8 @@ class ScreenUI:
             end: Gf.Vec3d,
             seconds_override: Optional[float] = None
     ):
+            from .extension import get_sim_manager
+
             def ease_in_out_cubic(t):
                 return 4 * t * t * t if t < 0.5 else 1 - pow(-2 * t + 2, 3) / 2
 
@@ -102,4 +104,5 @@ class ScreenUI:
                 i_val = start + (end - start) * ease_in_out_cubic(t)
                 camera_state.set_position_world(i_val, True)
                 camera_state.set_target_world(Gf.Vec3d(0,0,0), True)
+                get_sim_manager().update_satellite_scales()
                 await omni.kit.app.get_app().next_update_async()

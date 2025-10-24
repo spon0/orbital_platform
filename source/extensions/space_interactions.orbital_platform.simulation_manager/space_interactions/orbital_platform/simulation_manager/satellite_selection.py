@@ -43,13 +43,16 @@ class SatelliteSelectionFrame(ui.Frame):
             "electrical_temperature": None,
             "latitude": None,
             "longitude": None,
-            "altitude": None
+            "altitude": None,
+            "signal_strength": None,
+            "message_count": None,
+            "battery": None,
         }
         self._satellite_search = None
         self.set_build_fn(self._build_ui)
 
     def _build_ui(self):
-        w1, h1 = 250, 400
+        w1, h1 = 250, 600
         with ui.Placer(offset_x=self._window.width - self._margin - w1, offset_y=self._margin):
             with ui.ZStack(width=w1, height=h1 , content_clipping=True):
                 ui.Rectangle()
@@ -60,6 +63,7 @@ class SatelliteSelectionFrame(ui.Frame):
                             self._build_satellite_positions()
                             self._build_electrical_components()
                             self._build_solar_panels()
+                            self._build_satellite_telemetry()
 
     def _build_satellite_combobox(self):
         # Define the list of items for the combo box
@@ -84,24 +88,37 @@ class SatelliteSelectionFrame(ui.Frame):
         with ui.CollapsableFrame("Position", collapsed=False, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Latitude (°): ")
+                    ui.Label("Latitude (°):")
                     self._fields["latitude"] = ui.StringField(None, read_only=True)
                 with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Longitude (°): ")
+                    ui.Label("Longitude (°):")
                     self._fields["longitude"] = ui.StringField(None, read_only=True)
                 with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Altitude (km): ")
+                    ui.Label("Altitude (km):")
                     self._fields["altitude"] = ui.StringField(None, read_only=True)
 
+    def _build_satellite_telemetry(self):
+        with ui.CollapsableFrame("Telemetry", collapsed=True, name="group"):
+            with ui.VStack(height=0, spacing=5):
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Signal Strength (dB): ")
+                    self._fields["signal_strength"] = ui.StringField(None, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Message Count:")
+                    self._fields["message_count"] = ui.StringField(None, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Battery (%): ")
+                    self._fields["battery"] = ui.StringField(None, read_only=True)
+
     def _build_electrical_components(self):
-        with ui.CollapsableFrame("Electrical Components", collapsed=False, name="group"):
+        with ui.CollapsableFrame("Internal Temperature", collapsed=True, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
                     self._fields["electrical_temperature"] = ui.StringField(None, read_only=True)
 
     def _build_solar_panels(self):
-        with ui.CollapsableFrame("Solar Panels", collapsed=False, name="group"):
+        with ui.CollapsableFrame("External Temperature", collapsed=True, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
