@@ -3,7 +3,7 @@ import asyncio
 import time
 from typing import Optional
 from .satellite import Satellite
-from .style import PLAYBACK_PANEL
+from .style import SAT_SELECTION_PANEL
 from . import utils
 
 import omni.earth_2_command_center.app.core as earth2core
@@ -25,7 +25,7 @@ EMPTY_COMBO_VAL = "Search..."
 class SatelliteSelectionFrame(ui.Frame):
 
     def __init__(self, satellites: list[Satellite], coord_scale: float, timescale: Timescale) -> None:
-        super().__init__(spacing=0, style=PLAYBACK_PANEL)
+        super().__init__(spacing=0, style=SAT_SELECTION_PANEL)
 
         self._satellites = satellites
         self._selected_sat = None

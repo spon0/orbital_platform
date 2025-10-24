@@ -46,32 +46,31 @@ fl.example_window_group_spacing = 2
 ############################################
 # FONT
 ############################################
-_CLOCK_FONT = f"{EXT_TOKEN}/data/fonts/digital-7.regular.ttf"
+_CLOCK_FONT = f"{EXT_TOKEN}/data/fonts/consola.ttf" #f"{EXT_TOKEN}/data/fonts/digital-7.regular.ttf"
 _FONT = f"{EXT_TOKEN}/data/fonts/OpenSans-SemiBold.ttf"
 clock_box = {
     "font": _CLOCK_FONT,
-    "font_size": 12,
+    "font_size": 14,
+    "Field": {"alignment": ui.Alignment.RIGHT}
 }
 clock_label = {
-    "font": _FONT,
-    "font_size": 16,
+    "font": _CLOCK_FONT,
+    "font_size": 18,
 }
 
-timeline_frame = {
-    "Button": {"background_color": 0x0 },
-    #"Button:checked": {"background_color": 0x0},
-    #"Button:unchecked": {"background_color": 0x0},
-    #"Button:hovered": {"background_color": 0x0},
-    #"Button:pressed": {"background_color": 0x0},
-    "Button.Image": {"background_color": 0x0, "color": _LIGHT },
-    "Button.Image:hovered": {"color": _BLUE_A},
-    #"Button.Image:checked": {"color": _LIGHT},
+SIMULATION_CONTROLS = {
+    "margin": 3,
+    "Rectangle": {"background_color": cl("#26273188"), "border_radius": 4},
+    "Button": { "background_color": cl("#444444"), "margin_height": 0.5, "margin_width": 0.5},
+    "Button:hovered": {"background_color": cl("#444b8b")},
     "Button.Image:pressed": {"color": _DARK},
 }
 
-PLAYBACK_PANEL = {
+SAT_SELECTION_PANEL = {
     "margin": 3,
-    "Rectangle": {"background_color": _DARK_A, "border_radius": 3},
+    "Rectangle": {"background_color": cl.transparent, "border_radius": 3},
+    "ScrollingFrame": {"background_color": cl.transparent},
+    "CollapsableFrame": {"background_color": cl("#26273188")},
     "Button": { "background_color": 0x0, "margin_height": 0.5, "margin_width": 0.5},
     "Button:hovered": {"background_color": 0x0},
     "Button:pressed": {"background_color": 0x0},
