@@ -1,4 +1,5 @@
 from typing import Optional, Union
+import math
 from pxr import Sdf, UsdLux, UsdGeom, Gf, UsdPhysics, Vt, Usd, Tf
 
 import omni.kit.pipapi
@@ -28,6 +29,8 @@ class Satellite(EarthSatellite):
         self.scale = 1.0
         self.update_idx = 1
         self.proto_index = 0
+        self._last_update: Time = None
+        self.frame = framelib.ICRS
 
         self.data_feeds: dict[str, DataFeed] = dict()
 
@@ -43,10 +46,10 @@ class Satellite(EarthSatellite):
 
         return self.data_feeds[key]
 
-    def update_feeds(self) -> bool:
+    def update_feeds(self, time: Time) -> bool:
         ok = True
         for df in self.data_feeds.values():
-            ok &= df.update()
+            ok &= df.update(time)
 
         return ok
 
@@ -58,9 +61,10 @@ class Satellite(EarthSatellite):
         '''Call SGP4 and pack to Gf.Vec3d and quaternion and scale to our coordinate frame.'''
 
         geocentric = self.at(time)
-        pos, vel = geocentric.frame_xyz_and_velocity(framelib.itrs)
+        pos, vel = geocentric.frame_xyz_and_velocity(self.frame)
         self.pos = pos.km
         self.vel = vel.km_per_s
+        self._last_update = time
         # Pack to Gf.Vec3d and scale to our coordinate frame
         pos = utils.to_vec3d(self.pos * self.scale)
         vel = utils.to_vec3d(self.vel * self.scale)
@@ -72,3 +76,8 @@ class Satellite(EarthSatellite):
         self.actual_temperature += np.random.normal(self.nominal_temperature, 0.01)
 
         return (pos, vel, [qh.imaginary[0], qh.imaginary[1], qh.imaginary[2], qh.real])
+
+    def get_orbit(self) -> tuple[float, float, float]:
+        model = self.model
+
+        return (model.ecco, math.degrees(model.inclo), math.degrees(model.mo))

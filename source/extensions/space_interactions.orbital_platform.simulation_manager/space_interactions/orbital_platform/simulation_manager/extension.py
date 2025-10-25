@@ -40,12 +40,14 @@ import omni.earth_2_command_center.app.globe_view as globe
 import omni.kit.pipapi
 from pxr import Sdf, UsdGeom, Gf, Usd
 from . import utils
+from .satellite_selection import get_sat_selection
 from .satellite import Satellite
 from .screen_ui import ScreenUI
-from .data_feed import DataFeed
+from .data_feed import *
 
 omni.kit.pipapi.install("skyfield")
 from skyfield.api import load, Timescale, Time
+from skyfield.earthlib import earth_rotation_angle
 from skyfield import framelib
 
 SATTYPE_COLOR_MAPPING = {
@@ -59,12 +61,16 @@ SAT_MODEL_PATHS = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sat3.usda')
 ]
 DATA_FEED_TEMPLATES = [
-    # name, expected value, standard deviation, low limit, high limit
-    ("electrical_temperature", 4.0, 0.1, 3.0, 5.0),
-    ("panel_temperature", 12.0, 0.4, 8.0, 16.0),
-    ("latitude", None, None, -90, 90),
-    ("longitude", None, None, -180, 180),
-    ("altitude", None, None, 200, 40E6),
+    (SinusoidDataFeed, ("internal_temperature", 8.2/2, 60*90, 0, 0.1, 18.3, 26.7)),
+    (SinusoidDataFeed, ("external_temperature", 215/2, 60*90, 0, 0.1, -65, 150)),
+    (SinusoidDataFeed, ("battery", 50/2, 60*90, 0, 0.1, 40, 90)),
+    (GuassianDataFeed, ("signal_strength", 30, 1.0, 24, 50)),
+    (ExternalDataFeed, ("latitude", -90, 90)),
+    (ExternalDataFeed, ("longitude", -180, 180)),
+    (ExternalDataFeed, ("altitude", 200, 40E6)),
+    (ExternalDataFeed, ("inclination", 0, 90)),
+    (ExternalDataFeed, ("mean_anomaly", -math.inf, math.inf)),
+    (ExternalDataFeed, ("eccentricity", 0, 1)),
 ]
 CAM_DEFAULTS = {
         'xformOp:translate': Gf.Vec3d(14508.205314825205, 12510.310453034006, 5827.069287601547),
@@ -74,10 +80,12 @@ NULL_STRING_MODEL = ui.SimpleStringModel("")
 
 EMPTY_COMBO_VAL = "Search..."
 
+_sim_manager = None
 def get_sim_manager():
     global _sim_manager
     return _sim_manager
 
+_sim_ui = None
 def get_sim_ui():
     global _sim_ui
     return _sim_ui
@@ -119,7 +127,7 @@ class SimulationManager(omni.ext.IExt):
         self._usd_stage = omni.usd.get_context().get_stage()
 
         self.satellites: List[Satellite] = list()
-        self.timestepsPerUpdate = 60
+        self.timestepsPerUpdate = 120
         self.scale = globe.get_globe_view()._earth_radius / utils.WGS84_RADIUS
         self.speed = 1.0
         self._sat_distace_scaler : float = 0.001
@@ -133,6 +141,10 @@ class SimulationManager(omni.ext.IExt):
         self.satIndices = None
         self.satOrientations = None
         self.satScales = None
+
+        eph = load('de421.bsp')
+        self.sun = eph['sun']
+        self.earth = eph['earth']
 
         self.model_prims = []
         self._load_satellites_json()
@@ -162,7 +174,10 @@ class SimulationManager(omni.ext.IExt):
 
             # attach data feeds
             for dft in DATA_FEED_TEMPLATES:
-                sat.add_data_feed(DataFeed(dft[0], dft[1], dft[2], dft[3], dft[4]))
+                # template is (type, tuple(args))
+                typ = dft[0]
+                sat.add_data_feed(typ(*dft[1]))
+                #sat.add_data_feed(DataFeed(dft[0], dft[1], dft[2], dft[3], dft[4]))
 
 
             self.satellites.append(sat)
@@ -254,6 +269,12 @@ class SimulationManager(omni.ext.IExt):
         self._prev_time = self._curr_time
         self._curr_time = utc_time
 
+        theta = earth_rotation_angle(sim_time.whole, sim_time.ut1_fraction)
+        earth = self._usd_stage.GetPrimAtPath("/World/earth_xform")
+        rot_attr = earth.GetAttribute("xformOp:rotateXYZ")
+        new_rotation = Gf.Vec3f(0, 0, theta * 360)
+        rot_attr.Set(new_rotation)
+
         if len(self.satellites) > 0:
             # Update any pos/vel/orientation for whose turn it is
             for i, sat in enumerate(self.satellites):
@@ -268,7 +289,12 @@ class SimulationManager(omni.ext.IExt):
                     sat.get_data_feed("latitude").set(lat)
                     sat.get_data_feed("longitude").set(lon)
                     sat.get_data_feed("altitude").set(alt)
-                    ok = sat.update_feeds()
+                    ecc, inc, mo = sat.get_orbit()
+                    sat.get_data_feed("eccentricity").set(ecc)
+                    sat.get_data_feed("inclination").set(inc)
+                    sat.get_data_feed("mean_anomaly").set(mo)
+
+                    ok = sat.update_feeds(sim_time)
 
                     if not ok:
                         n = notify.post_notification(
@@ -276,7 +302,7 @@ class SimulationManager(omni.ext.IExt):
                             duration=5,
                             hide_after_timeout=False,
                             status=notify.NotificationStatus.INFO,
-                            button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sim_ui().select_satellite, sat=sat, index=i))]
+                            button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sat_selection().select_satellite, sat=sat, index=i))]
                         )
 
                         # sat.reset_feeds()

@@ -22,10 +22,17 @@ from skyfield import framelib
 NULL_STRING_MODEL = ui.SimpleStringModel("")
 EMPTY_COMBO_VAL = "Search..."
 
+def get_sat_selection():
+    global _sat_selection
+    return _sat_selection
+
 class SatelliteSelectionFrame(ui.Frame):
 
     def __init__(self, satellites: list[Satellite], coord_scale: float, timescale: Timescale) -> None:
         super().__init__(spacing=0, style=SAT_SELECTION_PANEL)
+
+        global _sat_selection
+        _sat_selection = self
 
         self._satellites = satellites
         self._selected_sat = None
@@ -39,20 +46,22 @@ class SatelliteSelectionFrame(ui.Frame):
         self._margin = 10
 
         self._fields: dict[str, ui.StringField] = {
-            "panel_temperature": None,
-            "electrical_temperature": None,
+            "internal_temperature": None,
+            "external_temperature": None,
+            "battery": None,
+            "signal_strength": None,
             "latitude": None,
             "longitude": None,
             "altitude": None,
-            "signal_strength": None,
-            "message_count": None,
-            "battery": None,
+            "eccentricity": None,
+            "inclination": None,
+            "mean_anomaly": None,
         }
         self._satellite_search = None
         self.set_build_fn(self._build_ui)
 
     def _build_ui(self):
-        w1, h1 = 250, 600
+        w1, h1 = 250, 800
         with ui.Placer(offset_x=self._window.width - self._margin - w1, offset_y=self._margin):
             with ui.ZStack(width=w1, height=h1 , content_clipping=True):
                 ui.Rectangle()
@@ -61,8 +70,9 @@ class SatelliteSelectionFrame(ui.Frame):
                     with ui.ScrollingFrame():
                         with ui.VStack(height=0):
                             self._build_satellite_positions()
-                            self._build_electrical_components()
-                            self._build_solar_panels()
+                            self._build_satellite_orbit()
+                            self._build_internal_temperature()
+                            self._build_external_temperature()
                             self._build_satellite_telemetry()
 
     def _build_satellite_combobox(self):
@@ -97,6 +107,19 @@ class SatelliteSelectionFrame(ui.Frame):
                     ui.Label("Altitude (km):")
                     self._fields["altitude"] = ui.StringField(None, read_only=True)
 
+    def _build_satellite_orbit(self):
+        with ui.CollapsableFrame("Orbit", collapsed=False, name="group"):
+            with ui.VStack(height=0, spacing=5):
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Eccentricity:")
+                    self._fields["eccentricity"] = ui.StringField(None, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Inclination (°):")
+                    self._fields["inclination"] = ui.StringField(None, read_only=True)
+                with ui.HStack(height=ui.Length(30)):
+                    ui.Label("Mean Anomaly (°):")
+                    self._fields["mean_anomaly"] = ui.StringField(None, read_only=True)
+
     def _build_satellite_telemetry(self):
         with ui.CollapsableFrame("Telemetry", collapsed=True, name="group"):
             with ui.VStack(height=0, spacing=5):
@@ -104,25 +127,22 @@ class SatelliteSelectionFrame(ui.Frame):
                     ui.Label("Signal Strength (dB): ")
                     self._fields["signal_strength"] = ui.StringField(None, read_only=True)
                 with ui.HStack(height=ui.Length(30)):
-                    ui.Label("Message Count:")
-                    self._fields["message_count"] = ui.StringField(None, read_only=True)
-                with ui.HStack(height=ui.Length(30)):
                     ui.Label("Battery (%): ")
                     self._fields["battery"] = ui.StringField(None, read_only=True)
 
-    def _build_electrical_components(self):
+    def _build_internal_temperature(self):
         with ui.CollapsableFrame("Internal Temperature", collapsed=True, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
-                    self._fields["electrical_temperature"] = ui.StringField(None, read_only=True)
+                    self._fields["internal_temperature"] = ui.StringField(None, read_only=True)
 
-    def _build_solar_panels(self):
+    def _build_external_temperature(self):
         with ui.CollapsableFrame("External Temperature", collapsed=True, name="group"):
             with ui.VStack(height=0, spacing=5):
                 with ui.HStack(height=ui.Length(30)):
                     ui.Label("Temperature (°C):")
-                    self._fields["panel_temperature"] = ui.StringField(None, read_only=True)
+                    self._fields["external_temperature"] = ui.StringField(None, read_only=True)
 
     def satellite_combo_click(self, model):
         selected_item = model.get_value_as_string()
@@ -165,7 +185,7 @@ class SatelliteSelectionFrame(ui.Frame):
         times = self._timescale.linspace(now, now + period_days, 360)
         for t in times:
             geocentric = sat.at(t)
-            pos = geocentric.frame_xyz(framelib.itrs)
+            pos = geocentric.frame_xyz(self._selected_sat.frame)
             # Pack to Gf.Vec3d and scale to our coordinate frame
             pos = utils.to_vec3f(pos.km * self._coord_scale)
             points.append(pos)
