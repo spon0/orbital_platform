@@ -58,6 +58,16 @@ class SunMotion:
             return True
         return False
 
+    def force_update_eci(self, theta, phi, utc_time: datetime.datetime) -> bool:
+        if feature := self._sun_feature_ref():
+            if not feature.active: return False
+            feature._theta = theta
+            feature._phi = phi
+            self._last_time = utc_time
+            self._dirty = False
+            return True
+        return False
+
     def _get_declination(self, utc_time: datetime.datetime)->float:
         return self._get_declination_spencer(utc_time) if SunMotion.DECLINATION_MODE == DeclinationMode.SPENCER \
             else self._get_declination_cooper(utc_time)

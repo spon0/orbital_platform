@@ -352,9 +352,10 @@ class WindowExtension(omni.ext.IExt):
             return
 
         if sun_dirty:
-            #self._sun_feature_motion.update(self._time_manager.current_utc_time)
-            phi = self._sun_feature.longitude
-            theta = 90 - self._sun_feature.latitude
+            # phi = self._sun_feature.longitude
+            # theta = 90 - self._sun_feature.latitude
+            theta = self._sun_feature._theta
+            phi = self._sun_feature._phi + 180
 
             sun_xform = UsdGeom.Xform(self.usd_stage.GetPrimAtPath('/World/sun'))
             for op in sun_xform.GetOrderedXformOps():

@@ -14,7 +14,7 @@ import omni.earth_2_command_center.app.core as earth2core
 
 import omni.kit.pipapi
 
-from .style import _PAUSE, _PLAY, PLAYBACK_PANEL, clock_box, clock_label, timeline_frame
+from .style import _PAUSE, _PLAY, clock_box, clock_label, SIMULATION_CONTROLS
 
 omni.kit.pipapi.install("skyfield")
 from skyfield.api import load, Time
@@ -27,7 +27,7 @@ def get_time_controller():
 class TimeControlFrame(ui.Frame):
 
     def __init__(self):
-        super().__init__(spacing=0, style=PLAYBACK_PANEL)
+        super().__init__(spacing=0, style=SIMULATION_CONTROLS)
 
         self.time_controller = SimulationTimeController()
 
@@ -57,14 +57,14 @@ class TimeControlFrame(ui.Frame):
         self.set_build_fn(self._build_fn)
 
     def _build_fn(self):
-        w, h = 400, 100
-        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.5, offset_y=self._window.height - self._margin - h - 25):
+        w, h = 300, 100
+        with ui.Placer(offset_x=self._window.width * 0.5 - w * 0.65, offset_y=self._window.height - self._margin - h - 25):
                 with ui.ZStack(width=w, height=h, content_clipping=1, opaque_for_mouse_events=True):
                     ui.Rectangle(width=ui.Percent(100), height=ui.Percent(100))
-                    with ui.VStack(spacing=0, style=timeline_frame):
+                    with ui.VStack(spacing=0):
 
                         # --- SECTION FOR SIMULATION CONTROL ---
-                        with ui.HStack(height=30, spacing=1):
+                        with ui.HStack(height=30, spacing=0):
                             # play/pause button
                             btn = ui.Button(
                                 "",
@@ -73,32 +73,31 @@ class TimeControlFrame(ui.Frame):
                                 height=0,
                                 image_width=25,
                                 image_height=25,
-                                checked = True,
-                                image_url = _PAUSE
+                                image_url = _PAUSE,
                             )
                             btn.set_clicked_fn(lambda b=btn: self._on_play_pause_click(b))
 
                             def build_year_box(model):
-                                o = ui.IntField(model, enabled=False, width=60, style=clock_box)
+                                o = ui.IntField(model, enabled=False, width=50, style=clock_box)
                                 self._datetime_fields.append(o)
                             def build_date_box(model):
-                                o = ui.IntField(model, enabled=False, width=40, style=clock_box)
+                                o = ui.IntField(model, enabled=False, width=30, style=clock_box)
                                 self._datetime_fields.append(o)
                             def build_time_box(model):
-                                o = ui.IntField(model, enabled=False, width=40, style=clock_box)
+                                o = ui.IntField(model, enabled=False, width=30, style=clock_box)
                                 self._datetime_fields.append(o)
 
                             ui.Label("Time:")
                             build_date_box(self.month_model)
-                            ui.Label("/", style=clock_label, width=5)
+                            ui.Label("/", style=clock_label, width=3)
                             build_date_box(self.day_model)
-                            ui.Label("/", style=clock_label, width=5)
+                            ui.Label("/", style=clock_label, width=3)
                             build_year_box(self.year_model)
                             ui.Spacer(width=10)
                             build_time_box(self.hour_model)
-                            ui.Label(":", style=clock_label, width=5)
+                            ui.Label(":", style=clock_label, width=3)
                             build_time_box(self.minute_model)
-                            ui.Label(":", style=clock_label, width=5)
+                            ui.Label(":", style=clock_label, width=3)
                             build_time_box(self.second_model)
 
                         ui.Spacer()
@@ -115,9 +114,10 @@ class TimeControlFrame(ui.Frame):
 
     def _on_play_pause_click(self, btn: ui.Button):
         # Make this a toggle checkbox
-        btn.checked = not btn.checked
+        #btn.checked = not btn.checked
 
-        if btn.checked:
+        #if btn.checked:
+        if not self.time_controller._is_running:
             btn.image_url = _PAUSE
             # Make fields uneditable
             for dt_field in self._datetime_fields:
@@ -129,6 +129,7 @@ class TimeControlFrame(ui.Frame):
                 self.day_model.get_value_as_int(),
                 self.hour_model.get_value_as_int(),
                 self.minute_model.get_value_as_int(),
+                self.second_model.get_value_as_int()
             )
 
             self.time_controller.play()

@@ -68,3 +68,10 @@ def xyz_to_lla(x, y, z):
     lon = math.degrees(lam)
 
     return (lat,lon,h)
+
+def xyz_to_spherical(x, y, z) -> tuple[float, float, float]:
+     r = math.sqrt(x**2 + y**2 + z**2)
+     theta = math.acos(z / r)
+     phi = math.atan(y / x)
+
+     return (r, math.degrees(theta), math.degrees(phi))

@@ -55,7 +55,7 @@ preview_image = "data/preview.png"
 exts."omni.earth_2_command_center.app.globe_view".stage = "${omni.earth_2_command_center.app.globe_view}/data/dynamic_texture_tests/test_002/test_002.usda"
 
 exts."omni.earth_2_command_center.app.globe_view".zoom_min = 4955
-exts."omni.earth_2_command_center.app.globe_view".zoom_max = 100000
+exts."omni.earth_2_command_center.app.globe_view".zoom_max = 200000
 
 [[python.module]]
 name = "omni.earth_2_command_center.app.globe_view"
