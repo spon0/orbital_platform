@@ -13,8 +13,6 @@ import os
 import asyncio
 import json
 import numpy as np
-# For testing
-np.random.seed(123)
 import time
 import math
 from datetime import datetime, timedelta
@@ -61,14 +59,14 @@ SAT_MODEL_PATHS = [
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sat3.usda')
 ]
 DATA_FEED_TEMPLATES = [
-    (SinusoidDataFeed, ("internal_temperature", 8.2/2, 60*90, 0, 0.1, 18.3, 26.7)),
-    (SinusoidDataFeed, ("external_temperature", 215/2, 60*90, 0, 0.1, -65, 150)),
-    (SinusoidDataFeed, ("battery", 50/2, 60*90, 0, 0.1, 40, 90)),
+    (SinusoidDataFeed, ("internal_temperature", 8.2/2 * 0.9, 60*90, 0, 0.1, 18.3, 26.7)),
+    (SinusoidDataFeed, ("external_temperature", 215/2 * 0.9, 60*90, 0, 0.1, -65, 150)),
+    (SinusoidDataFeed, ("battery", 50/2 * 0.9, 60*90, 0, 0.1, 40, 90)),
     (GuassianDataFeed, ("signal_strength", 30, 1.0, 24, 50)),
     (ExternalDataFeed, ("latitude", -90, 90)),
     (ExternalDataFeed, ("longitude", -180, 180)),
     (ExternalDataFeed, ("altitude", 200, 40E6)),
-    (ExternalDataFeed, ("inclination", 0, 90)),
+    (ExternalDataFeed, ("inclination", 0, 180)),
     (ExternalDataFeed, ("mean_anomaly", -math.inf, math.inf)),
     (ExternalDataFeed, ("eccentricity", 0, 1)),
 ]
@@ -269,12 +267,6 @@ class SimulationManager(omni.ext.IExt):
         self._prev_time = self._curr_time
         self._curr_time = utc_time
 
-        theta = earth_rotation_angle(sim_time.whole, sim_time.ut1_fraction)
-        earth = self._usd_stage.GetPrimAtPath("/World/earth_xform")
-        rot_attr = earth.GetAttribute("xformOp:rotateXYZ")
-        new_rotation = Gf.Vec3f(0, 0, theta * 360)
-        rot_attr.Set(new_rotation)
-
         if len(self.satellites) > 0:
             # Update any pos/vel/orientation for whose turn it is
             for i, sat in enumerate(self.satellites):
@@ -285,7 +277,7 @@ class SimulationManager(omni.ext.IExt):
                     self.satVelocities[i, :] = vel
                     self.satOrientations[i, :] = ori
 
-                    lat, lon, alt = utils.xyz_to_lla(sat.pos[0], sat.pos[1], sat.pos[2])
+                    lat, lon, alt = utils.xyz_to_lla(sat.ecef_pos[0], sat.ecef_pos[1], sat.ecef_pos[2])
                     sat.get_data_feed("latitude").set(lat)
                     sat.get_data_feed("longitude").set(lon)
                     sat.get_data_feed("altitude").set(alt)
@@ -294,18 +286,17 @@ class SimulationManager(omni.ext.IExt):
                     sat.get_data_feed("inclination").set(inc)
                     sat.get_data_feed("mean_anomaly").set(mo)
 
-                    ok = sat.update_feeds(sim_time)
+                    ok, msgs = sat.update_feeds(sim_time)
 
                     if not ok:
-                        n = notify.post_notification(
-                            text=f"{sat.name} has triggered an anomaly",
-                            duration=5,
-                            hide_after_timeout=False,
-                            status=notify.NotificationStatus.INFO,
-                            button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sat_selection().select_satellite, sat=sat, index=i))]
-                        )
-
-                        # sat.reset_feeds()
+                        for msg in msgs:
+                            n = notify.post_notification(
+                                text=f"{sat.name} {msg}",
+                                duration=5,
+                                hide_after_timeout=False,
+                                status=notify.NotificationStatus.WARNING,
+                                button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sat_selection().select_satellite, sat=sat, index=i))]
+                            )
 
             # Move points to new positions
             self.update_satellite_states()
@@ -313,8 +304,18 @@ class SimulationManager(omni.ext.IExt):
             # Update scales based on new positions
             self.update_satellite_scales()
 
+            # Update Earth rotation
+            theta = earth_rotation_angle(sim_time.whole, sim_time.ut1_fraction)
+            earth = self._usd_stage.GetPrimAtPath("/World/earth_xform")
+            rot_attr = earth.GetAttribute("xformOp:rotateXYZ")
+            new_rotation = Gf.Vec3f(0, 0, theta * 360)
+            rot_attr.Set(new_rotation)
+
             # Update sun position
-            globe.get_globe_view()._sun_feature_motion.force_update(utc_time)
+            #sun_position = (self.sun - self.earth).at(sim_time).position.km
+            sun_position = self.earth.at(sim_time).observe(self.sun).apparent().position.km
+            r, theta, phi = utils.xyz_to_spherical(sun_position[0], sun_position[1], sun_position[2])
+            globe.get_globe_view()._sun_feature_motion.force_update_eci(theta, phi, utc_time)
 
         self._frame_num += 1
 

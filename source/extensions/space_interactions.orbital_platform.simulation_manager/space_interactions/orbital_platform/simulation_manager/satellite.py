@@ -32,6 +32,8 @@ class Satellite(EarthSatellite):
         self._last_update: Time = None
         self.frame = framelib.ICRS
 
+        self.ecef_pos = None
+
         self.data_feeds: dict[str, DataFeed] = dict()
 
     def set_scale(self, scale):
@@ -46,12 +48,16 @@ class Satellite(EarthSatellite):
 
         return self.data_feeds[key]
 
-    def update_feeds(self, time: Time) -> bool:
-        ok = True
+    def update_feeds(self, time: Time) -> tuple[bool, list[str]]:
+        all_systems_ok = True
+        msgs = []
         for df in self.data_feeds.values():
-            ok &= df.update(time)
+            ok, msg = df.update(time)
+            all_systems_ok &= ok
+            if not ok:
+                msgs.append(msg)
 
-        return ok
+        return all_systems_ok, msgs
 
     def reset_feeds(self):
         for df in self.data_feeds.values():
@@ -65,6 +71,8 @@ class Satellite(EarthSatellite):
         self.pos = pos.km
         self.vel = vel.km_per_s
         self._last_update = time
+
+        self.ecef_pos = geocentric.frame_xyz(frame=framelib.itrs).km
         # Pack to Gf.Vec3d and scale to our coordinate frame
         pos = utils.to_vec3d(self.pos * self.scale)
         vel = utils.to_vec3d(self.vel * self.scale)

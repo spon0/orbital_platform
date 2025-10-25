@@ -40,7 +40,7 @@ class ScreenUI:
         self._window.set_height_changed_fn(self._on_size_change)
 
         self.__zoom_min = 5_000
-        self.__zoom_max = 120_000
+        self.__zoom_max = 400_000
 
         self._satellite_selection_frame: Optional[SatelliteSelectionFrame] = None
         self._timeline_frame: Optional[TimeControlFrame] = None

@@ -30,6 +30,9 @@ class Sun(Light):
         self._longitude: float = 0.0
         self._latitude: float  = 0.0
 
+        self._theta: float = 0.0
+        self._phi: float = 0.0
+
     @property
     def diurnal_motion(self)->bool:
         return self._diurnal_motion
@@ -61,4 +64,3 @@ class Sun(Light):
     @latitude.setter
     def latitude(self, latitude: float):
         self._property_change('latitude', latitude)
-
