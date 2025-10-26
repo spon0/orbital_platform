@@ -34,6 +34,8 @@ import omni.kit.notification_manager as notify
 
 import omni.earth_2_command_center.app.core as earth2core
 import omni.earth_2_command_center.app.globe_view as globe
+from omni.kit.hotkeys.core import get_hotkey_registry
+from omni.kit.actions.core import acquire_action_registry
 
 import omni.kit.pipapi
 from pxr import Sdf, UsdGeom, Gf, Usd
@@ -133,6 +135,7 @@ class SimulationManager(omni.ext.IExt):
         self._frame_num = 0
         self._prev_time: datetime = None
         self._curr_time: datetime = earth2core.get_state().get_time_manager().utc_start_time
+        self._use_spheres = True
         self.satellitesPrim = None
         self.satPositions = None
         self.satVelocities = None
@@ -152,6 +155,13 @@ class SimulationManager(omni.ext.IExt):
 
         self._scale_update_rate = 1/60
         self._last_scale_update = float()
+
+        hotkey_registry = get_hotkey_registry()
+        action_registry = acquire_action_registry()
+
+        action_registry.register_action(self._ext_id, 'toggle_shapes', self._toggle_shapes, 'Toggle Satellite Shapes', 'Toggle Satellite Shapes')
+        hotkey_registry.register_hotkey(self._ext_id, "CTRL + G", self._ext_id, 'toggle_shapes')
+
 
     def _load_satellites_json(self, path:str = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backup.tle')):
         tles = json.load(open(path))
@@ -369,7 +379,12 @@ class SimulationManager(omni.ext.IExt):
             out = wp.empty(shape=n, dtype=wp.vec3, device="cuda")
             pos = wp.from_numpy(self.satPositions, dtype=wp.vec3, device="cuda")
             wp.launch(cameraDistKernel, dim=n, inputs=[pos, self.get_camera_position(), self._sat_distace_scaler, out], device="cuda")
-            self.satScales = np.clip(out.numpy(), 3.0, 300.0)
+            self.satScales = np.clip(out.numpy(), 0.1, 300.0)
+
+            if not self._use_spheres:
+                if idx := self._screen_ui._satellite_selection_frame.selected_sat_idx:
+                    self.satScales[idx] *= 10
+
 
             self.satellitesPrim.GetScalesAttr().Set(self.satScales)
 
@@ -396,6 +411,26 @@ class SimulationManager(omni.ext.IExt):
             camera_state = ViewportCameraState(get_active_viewport_camera_path())
             camera_state.set_position_world(end_pos, True)
             camera_state.set_target_world(Gf.Vec3d(0,0,0), True)
+
+    def _toggle_shapes(self):
+
+        if self._use_spheres:
+            # Change to satellite models
+            self._use_spheres = False
+
+            for i, sat in enumerate(self.satellites):
+                self.satIndices[i] = sat.proto_index
+                self.satellitesPrim.GetProtoIndicesAttr().Set(self.satIndices)
+                self._sat_distace_scaler = 0.0001
+
+        else:
+            # Change back to spheres
+            self._use_spheres = True
+
+            for i, sat in enumerate(self.satellites):
+                self.satIndices[i] = 0
+                self.satellitesPrim.GetProtoIndicesAttr().Set(self.satIndices)
+                self._sat_distace_scaler = 0.001
 
 
 

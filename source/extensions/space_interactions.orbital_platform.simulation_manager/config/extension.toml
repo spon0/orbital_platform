@@ -29,6 +29,8 @@ repository = "https://github.com/NVIDIA-Omniverse/kit-app-template"  # URL of th
 "omni.earth_2_command_center.app.geo_utils" = {}
 "omni.warp.core" = {}
 "omni.kit.pip_archive" = {} # for skyfield
+"omni.kit.hotkeys.core" = {}
+"omni.kit.actions.core" = {}
 
 [settings]
 

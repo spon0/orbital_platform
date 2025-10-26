@@ -207,6 +207,9 @@ class SatelliteSelectionFrame(ui.Frame):
 
         # Change geometry for selected satellite
         indices = [0] * len(self._satellites)
+        if not get_sim_manager()._use_spheres:
+            for i, sat in enumerate(self._satellites):
+                indices[i] = sat.proto_index
         indices[self.selected_sat_idx] = sat.proto_index
         get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
 
@@ -231,7 +234,10 @@ class SatelliteSelectionFrame(ui.Frame):
         self._stage.RemovePrim(self._orbit_curve_path)
 
         # Change geometry for unselected satellite
-        indices = [0] * len(get_sim_manager().satellites)
+        if get_sim_manager()._use_spheres:
+            indices = [0] * len(get_sim_manager().satellites)
+        else:
+            indices = [_.proto_index for _ in get_sim_manager().satellites]
         get_sim_manager().satellitesPrim.GetProtoIndicesAttr().Set(indices)
 
         # Update field models
