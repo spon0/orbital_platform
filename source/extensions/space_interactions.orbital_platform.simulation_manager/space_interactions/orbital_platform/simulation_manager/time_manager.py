@@ -177,7 +177,7 @@ class SimulationTimeController:
     Manages the state of the simulation time, including date, speed, and play/pause.
     """
 
-    DEFAULT_SPEED = 10.0
+    DEFAULT_SPEED = 1.0
     MIN_SPEED = 0.1
     MAX_SPEED = 50.0
 

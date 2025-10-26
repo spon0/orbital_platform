@@ -293,7 +293,7 @@ class SimulationManager(omni.ext.IExt):
                             n = notify.post_notification(
                                 text=f"{sat.name} {msg}",
                                 duration=5,
-                                hide_after_timeout=False,
+                                hide_after_timeout=True,
                                 status=notify.NotificationStatus.WARNING,
                                 button_infos=[notify.NotificationButtonInfo("Select object", on_complete=partial(get_sat_selection().select_satellite, sat=sat, index=i))]
                             )
