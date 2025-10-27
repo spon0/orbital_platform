@@ -45,13 +45,13 @@ class ExternalDataFeed(DataFeed):
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
+            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
 
         if self.value > self.upper_limit and not self.notified:
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
+            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
 
         self.model.set_value(self.value)
 
@@ -75,13 +75,13 @@ class GuassianDataFeed(DataFeed):
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
+            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
 
         if self.value > self.upper_limit and not self.notified:
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
+            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
 
         self.model.set_value(self.value)
 
@@ -118,13 +118,13 @@ class SinusoidDataFeed(DataFeed):
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
+            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
 
         if self.value > self.upper_limit and not self.notified:
             # notify
             self.notified = True
             ok = False
-            msg = f'MESSAGE: Lower limit exceeded: {self.name}'
+            msg = f'MESSAGE: Upper limit exceeded: {self.name}'
 
         self.model.set_value(self.value)
 

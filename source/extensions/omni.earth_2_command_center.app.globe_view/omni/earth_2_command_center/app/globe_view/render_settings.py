@@ -17,13 +17,13 @@ def set_render_settings():
 
     settings.set_string("/rtx/rendermode", "rtx") #"PathTracing"
     # for atmosphere
-    settings.set_int("/rtx/translucency/maxRefractionBounces", 3)
+    settings.set_int("/rtx/translucency/maxRefractionBounces", 2)
     settings.set_float("/rtx/translucency/worldEps", 0.0)
     #settings.set_bool("/rtx/newDenoiser/enabled", False)
     settings.set_bool("/rtx/directLighting/sampledLighting/enabled", True)
     #settings.set_int("/rtx/directLighting/sampledLighting/samplesPerPixel", 128)
     settings.set_bool("/rtx/ecoMode/enabled", True) # to avoid 'burn in' artifacts from DLSS
-    settings.set_int("/rtx/post/aa/op", 3) # 0=None, 2=FXAA, 3=DLSS, 4=DLAA
+    settings.set_int("/rtx/post/aa/op", 4) # 0=None, 2=FXAA, 3=DLSS, 4=DLAA
     # don't do next frame prediction as we get bad artifacts when tumbling the globe
     settings.set_int("/rtx-transient/dlssg/enabled", False)
     # sometimes accumulation looks very blurry, we prefer flickering over blurring
@@ -46,6 +46,6 @@ def set_render_settings():
     #settings.set_float("/rtx/post/tvNoise/grainAmount", 0.01)
 
     # add motion blur
-    #settings.set_bool("/rtx/post/motionblur/enabled", True)
+    settings.set_bool("/rtx/post/motionblur/enabled", False)
     #settings.set_float("/rtx/post/motionblur/maxBlurDiameterFraction", 0.005)
     #settings.set_int("/rtx/post/motionblur/numSamples", 16)
